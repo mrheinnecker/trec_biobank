@@ -14,7 +14,8 @@ The repo is sub-structured according to the various modalities and downstream an
 | `exm/` | Expansion microscopy (Nikon `.nd2`, one file per channel) |
 | `metab/` | Metabarcoding (16S/18S amplicons): nf-core/ampliseq plus SILVA/PR2 taxonomy |
 | `overview/` | Biobank overview (samples, sampling events, imaging per modality) and collection-table overview |
-| `annotations/` | TEM annotation table setup and preliminary annotation analysis |
+| `annotations/` | TEM annotation table setup |
+| `analysis/` | TEM annotation analysis (annotator QC, site features, feature associations) |
 | `microsam/` | micro-SAM segmentation, DINOv2 embedding and clustering of TEM images (separate pipeline, see `microsam/README.txt`) |
 | `container/` | Apptainer/Singularity definition files |
 
@@ -86,7 +87,8 @@ All datasets go to `imatrec/central_data_processing/<modality>` on the EMBL S3 (
 +-- metab/            # ampliseq launch scripts, samplesheet builder, datahub download, AMPLISEQ_SETUP.md
 |   +-- taxonomy/     # wfTAXONOMY.nf + R scripts (SILVA/PR2 classification)
 +-- overview/         # biobank_overview.R, biobank_overview_figure.R, collection_table_overview.R
-+-- annotations/      # setup_main_table.R, prelim_anal.R
++-- annotations/      # setup_main_table.R, launcher.sh
++-- analysis/         # annotation analysis: common.R, 01-05 scripts, run_analysis.sh
 +-- microsam/         # segmentation / embedding / clustering pipeline
 ```
 
@@ -209,7 +211,12 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
 
 **Annotations (`annotations/`).**
 - `setup_main_table.R` builds the main annotation table from the TEM collection table and the existing annotations.
-- `prelim_anal.R` is the preliminary analysis. It keeps the first annotation of each cell across annotation runs and splits the `undescribed` column into one 0/1 column per number. It then runs pairwise association tests and per-site tests for every feature (Kruskal-Wallis, chi-squared, and a binomial GLMM with sample as random effect), and draws site heatmaps grouped by organelles and undescribed structures.
+- `analysis/` (repo root) holds the annotation analysis, one script per analysis. All scripts take `--input <annotations.tsv> --outdir <dir>` and write plots to `<dir>/plots` and tables to `<dir>/tables`. Shared data preparation is in `common.R`: it keeps the first annotation of each cell across annotation runs and splits the `undescribed` column into one 0/1 column per number.
+  - `01_annotator_qc.R`: beauty scores per annotator; agreement between annotation and validation.
+  - `02_site_overview.R`: annotated cells per site and major group.
+  - `03_site_features.R` (dinoflagellates): per-site frequency of every organelle and undescribed structure, with site tests (Kruskal-Wallis, chi-squared, binomial GLMM with sample as random effect).
+  - `04_associations.R` (dinoflagellates): pairwise association tests between all features and metadata. `05_association_plots.R` plots the significant pairs and needs the output of `04`.
+  - `run_analysis.sh <annotations.tsv> <outdir> [steps]` runs the steps in an R container (`R_SIF`, which needs tidyverse, cowplot, patchwork and lme4).
 - `annotations/launcher.sh` is temporary until all old annotations are adapted; use with care.
 
 ## External Dependencies
