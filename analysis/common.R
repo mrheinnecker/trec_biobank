@@ -108,10 +108,11 @@ load_dino_data <- function(path) {
     filter(major_group == 1) %>%
     add_undescribed_cols() %>%
     ## I (marco) annotated ret_net also when there is crystaline ret_net ... i am fixing this here
+    ## -> retic_net set to 0 wherever cryst_rich_RN is 1
     mutate(
-      retic_net_new=case_when(
-        cryst_rich_RN==1 ~ 0,
+      retic_net = case_when(
+        cryst_rich_RN == 1 ~ 0,
         TRUE ~ retic_net
       )
-    ) #%>% select(retic_net, cryst_rich_RN,  retic_net_new) %>% View()
+    )
 }

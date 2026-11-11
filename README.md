@@ -15,7 +15,7 @@ The repo is sub-structured according to the various modalities and downstream an
 | `metab/` | Metabarcoding (16S/18S amplicons): nf-core/ampliseq plus SILVA/PR2 taxonomy |
 | `overview/` | Biobank overview (samples, sampling events, imaging per modality) and collection-table overview |
 | `annotations/` | TEM annotation table setup |
-| `analysis/` | TEM annotation analysis (annotator QC, site features, feature associations) |
+| `analysis/` | TEM annotation analysis (annotator QC, site features, feature associations, organelle clustering) |
 | `microsam/` | micro-SAM segmentation, DINOv2 embedding and clustering of TEM images (separate pipeline, see `microsam/README.txt`) |
 | `container/` | Apptainer/Singularity definition files |
 
@@ -216,6 +216,7 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
   - `02_site_overview.R`: annotated cells per site and major group.
   - `03_site_features.R` (dinoflagellates): per-site frequency of every organelle and undescribed structure, with site tests (Kruskal-Wallis, chi-squared, binomial GLMM with sample as random effect).
   - `04_associations.R` (dinoflagellates): pairwise association tests between all features and metadata. `05_association_plots.R` plots the significant pairs and needs the output of `04`.
+  - `06_organelle_clustering.R` (dinoflagellates): clusters the cells by organelle presence/absence (Jaccard distance, Ward linkage, k picked by silhouette width; settings at the top of the script). Outputs a heatmap, a PCoA, the organelle profile of each cluster, and cluster composition per site, size fraction, sampling time and life status.
   - `run_analysis.sh <annotations.tsv> <outdir> [steps]` runs the steps in an R container (`R_SIF`, which needs tidyverse, cowplot, patchwork and lme4).
 - `annotations/launcher.sh` is temporary until all old annotations are adapted; use with care.
 
