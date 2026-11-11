@@ -9,10 +9,12 @@ suppressPackageStartupMessages({
 ## every script takes the same arguments:
 ##   --input   annotation table (tsv, export of the annotation sheet)
 ##   --outdir  output root; plots go to <outdir>/plots, tables to <outdir>/tables
-## both can also come from the env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR
-parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
-  out <- list(input  = Sys.getenv("TEM_ANNOT_INPUT", NA_character_),
-              outdir = Sys.getenv("TEM_ANNOT_OUTDIR", NA_character_))
+## precedence: command line > env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR > defaults
+## (the defaults are the hard-coded paths at the top of every script, for running line by line)
+parse_args <- function(args = commandArgs(trailingOnly = TRUE),
+                       default_input = NA_character_, default_outdir = NA_character_) {
+  out <- list(input  = Sys.getenv("TEM_ANNOT_INPUT", default_input),
+              outdir = Sys.getenv("TEM_ANNOT_OUTDIR", default_outdir))
   i <- 1L
   while (i <= length(args)) {
     arg <- args[[i]]
@@ -104,5 +106,12 @@ load_dino_data <- function(path) {
   load_annotations(path) %>%
     dedup_first_run() %>%
     filter(major_group == 1) %>%
-    add_undescribed_cols()
+    add_undescribed_cols() %>%
+    ## I (marco) annotated ret_net also when there is crystaline ret_net ... i am fixing this here
+    mutate(
+      retic_net_new=case_when(
+        cryst_rich_RN==1 ~ 0,
+        TRUE ~ retic_net
+      )
+    ) #%>% select(retic_net, cryst_rich_RN,  retic_net_new) %>% View()
 }
