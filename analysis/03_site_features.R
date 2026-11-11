@@ -12,13 +12,21 @@
 ##       present ~ this site vs. all others + (1 | sample), Wald test of the site term
 ##       p < 0.05 -> that site has clearly more (solid) / fewer (dashed) cells with the feature
 
-script_dir <- dirname(normalizePath(sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value = TRUE)[1])))
+## ---- paths ----
+## hard-coded for running line by line (RStudio); when run with Rscript,
+## --input / --outdir (or the env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR) take precedence
+default_input      <- "C:/projects/tem_classification/all_annotations_2026-10-15.tsv"
+default_outdir     <- "C:/projects/tem_classification"   # -> plots/ and tables/ in here
+default_script_dir <- "C:/repos/tem_classification/analysis"
+
+script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]
+script_dir  <- if (is.na(script_file)) default_script_dir else dirname(normalizePath(sub("^--file=", "", script_file)))
 source(file.path(script_dir, "common.R"))
 suppressPackageStartupMessages({
   library(lme4)
   library(patchwork)
 })
-opt <- parse_args()
+opt <- parse_args(default_input = default_input, default_outdir = default_outdir)
 
 dino <- load_dino_data(opt$input)
 
