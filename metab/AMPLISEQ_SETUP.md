@@ -78,10 +78,17 @@ The taxonomy workflow then:
    (barrnap euk); ASVs without a barrnap hit go to both.
 2. `ASSIGNTAXONOMY`: DADA2 `assignTaxonomy` (minBoot 50), 16S against SILVA
    138.2 (to genus), 18S against PR2 5.1.1 (to species), in parallel.
-3. `MERGETAXONOMY`: writes `asv_taxonomy.tsv` (chosen lineage, lowest rank,
+3. `SELECTORGANELLES` + `ASSIGNORGANELLES`: ASVs that SILVA files as
+   Chloroplast or Mitochondria (SILVA keeps them under Cyanobacteria /
+   Rickettsiales) are classified again against PR2, which contains plastid and
+   mitochondrial 16S labelled with the eukaryotic host (`Eukaryota:plas;...`).
+4. `MERGETAXONOMY`: writes `asv_taxonomy.tsv` (chosen lineage, lowest rank,
    bootstrap, category prokaryote / plastid / mitochondrion /
-   eukaryote_nuclear / unassigned, plus all SILVA and PR2 columns),
-   `asv_table_taxonomy.tsv` (counts with taxonomy) and `taxonomy_overview.tsv`.
+   eukaryote_nuclear / unassigned, plus all SILVA and PR2 columns; for
+   organelle ASVs also `organelle_host_taxonomy`, `organelle_host_lowest_taxon`,
+   `organelle_host_lowest_boot` and the raw `organelle_pr2_*` columns),
+   `asv_table_taxonomy.tsv` (counts with taxonomy and host lineage) and
+   `taxonomy_overview.tsv`. The main `taxonomy` of organelle ASVs stays SILVA.
 
 References (DADA2 format):
 
