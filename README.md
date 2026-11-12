@@ -72,8 +72,7 @@ All datasets go to `imatrec/central_data_processing/<modality>` on the EMBL S3 (
 +-- container/        # *.def: eubibridge, imod(_procps), mc, py_mrcfile, segmentation,
 |                     #        czi_to_tiff, nd2_to_tiff, lif_metadata, sshpass, microsam
 +-- tem/              # wfTEM.nf, main.sh, nextflow.config, process_images.py, correct_gradient.py,
-|                     # extract_image_stats.py, make_collection_table.R, make_split_collection_tables.R,
-|                     # imaging_ov.R, annotation_ov.R, figures/
+|                     # extract_image_stats.py, make_collection_table.R, imaging_ov.R, figures/
 +-- sem/              # wfSEM.nf, sem_main.sh, nextflow.config, select_images.R, extract_metadata.py,
 |                     # make_collection_table.R
 +-- hitt/             # wfHITT.nf, hitt_main.sh, nextflow.config, prepare_slices.py,
@@ -87,7 +86,8 @@ All datasets go to `imatrec/central_data_processing/<modality>` on the EMBL S3 (
 +-- metab/            # ampliseq launch scripts, samplesheet builder, datahub download, AMPLISEQ_SETUP.md
 |   +-- taxonomy/     # wfTAXONOMY.nf + R scripts (SILVA/PR2 classification)
 +-- overview/         # biobank_overview.R, biobank_overview_figure.R, collection_table_overview.R
-+-- annotations/      # setup_main_table.R, launcher.sh
++-- annotations/      # launcher.sh, make_split_collection_tables.R, annotation_rounds_common.R,
+|                     # migrate_annotation_rounds.R, setup_main_table.R, annotation_ov.R, bio_anno.R
 +-- analysis/         # annotation analysis: common.R, 01-05 scripts, run_analysis.sh
 +-- microsam/         # segmentation / embedding / clustering pipeline
 ```
@@ -201,7 +201,8 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
 |---|---|
 | `SPLITASVS` | Splits ASVs by barrnap's best hit: bacteria/archaea/mitochondria -> 16S, eukaryotes -> 18S; ASVs without a hit go to both |
 | `ASSIGNTAXONOMY` | DADA2 `assignTaxonomy` (minBoot 50): 16S against SILVA (to genus), 18S against PR2 (to species), in parallel |
-| `MERGETAXONOMY` | Combines both into `<ampliseq results>/taxonomy/`: `asv_taxonomy.tsv` (lineage, lowest rank, bootstrap, category: prokaryote / plastid / mitochondrion / eukaryote_nuclear / unassigned, all SILVA and PR2 columns), `asv_table_taxonomy.tsv` (counts per sample with taxonomy), `taxonomy_overview.tsv` |
+| `SELECTORGANELLES` / `ASSIGNORGANELLES` | ASVs that SILVA calls Chloroplast or Mitochondria are classified again against PR2, which has organelle 16S labelled with the eukaryotic host (e.g. `Eukaryota:plas;...;Thalassiosira:plas`) |
+| `MERGETAXONOMY` | Combines all into `<ampliseq results>/taxonomy/`: `asv_taxonomy.tsv` (lineage, lowest rank, bootstrap, category: prokaryote / plastid / mitochondrion / eukaryote_nuclear / unassigned, all SILVA and PR2 columns; plastid/mitochondrion ASVs also get `organelle_host_taxonomy`), `asv_table_taxonomy.tsv` (counts per sample with taxonomy and host lineage), `taxonomy_overview.tsv` |
 
 ## Overview and annotations
 
@@ -210,7 +211,15 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
 **Collection-table overview (`launch_collection_overview.sh`).** Summarises all collection tables (rows, dataset metadata, counts per modality) in the tidyverse container.
 
 **Annotations (`annotations/`).**
-- `setup_main_table.R` builds the main annotation table from the TEM collection table and the existing annotations.
+- `annotations/make_split_collection_tables.R` (commands in `annotations/launcher.sh`) distributes the images of the `tem_collection_table` to the annotators and collects their work. Every image is annotated twice by different people: round 1 (name in `annotated_by`) and round 2, the validation (name in `validated_by`). The name counts, not the tab it was entered in. Sheets in the annotation spreadsheet:
+  - `main`: one row per finished round (`round`, `annotated_by` = who did it, annotation values); a validated image has two rows.
+  - `status`: one row per image with `annotated_by` (round 1) and `validated_by` (round 2).
+  - one tab per assignee with the current assignment (`round` 1 or 2; for round 2 `annotated_by` shows the first annotator).
+
+  Every run backs up all sheets to `<annotation_log_dir>/<timestamp>/` before writing anything (plus the new state as `new_*.tsv` and `issues.tsv`). Rows with values and a name move to `main`; rows with values but no name stay in the same tab; unknown names stop the run (known misspellings are in `name_aliases` in `annotations/annotation_rounds_common.R`). The tabs are then refilled: all open images are split equally over `--assignees`, images without any annotation first (contiguous blocks), validations behind them (never to the first annotator); `--max_rows_per_person` optionally caps the rows per person. When someone leaves, move the name to `--former_assignees`: the tab is still backed up and its finished rows collected, then it is emptied; unsigned rows there go back to the pool.
+- `annotations/migrate_annotation_rounds.R`: one-off conversion of the old main sheet to the round format, rebuilt from all backups (`--write TRUE` to overwrite `main` and `status`).
+- `annotations/setup_main_table.R`: original setup of the main table (historical).
+- `annotations/annotation_ov.R`, `annotations/bio_anno.R`: early overview plots of the quality and biological annotations in the old `image_log` sheet (historical).
 - `analysis/` (repo root) holds the annotation analysis, one script per analysis. All scripts take `--input <annotations.tsv> --outdir <dir>` and write plots to `<dir>/plots` and tables to `<dir>/tables`. Shared data preparation is in `common.R`: it keeps the first annotation of each cell across annotation runs and splits the `undescribed` column into one 0/1 column per number.
   - `01_annotator_qc.R`: beauty scores per annotator; agreement between annotation and validation.
   - `02_site_overview.R`: annotated cells per site and major group.
@@ -218,7 +227,6 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
   - `04_associations.R` (dinoflagellates): pairwise association tests between all features and metadata. `05_association_plots.R` plots the significant pairs and needs the output of `04`.
   - `06_organelle_clustering.R` (dinoflagellates): clusters the cells by organelle presence/absence (Jaccard distance, Ward linkage, k picked by silhouette width; settings at the top of the script). Outputs a heatmap, a PCoA, the organelle profile of each cluster, and cluster composition per site, size fraction, sampling time and life status.
   - `run_analysis.sh <annotations.tsv> <outdir> [steps]` runs the steps in an R container (`R_SIF`, which needs tidyverse, cowplot, patchwork and lme4).
-- `annotations/launcher.sh` is temporary until all old annotations are adapted; use with care.
 
 ## External Dependencies
 
