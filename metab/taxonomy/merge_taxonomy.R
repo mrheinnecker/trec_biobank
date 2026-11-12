@@ -24,34 +24,45 @@ min_boot <- as.integer(args[6])
 rank_cols <- function(tax) setdiff(names(tax)[!startsWith(names(tax), "boot_")], "ASV_ID")
 
 # Lineage string, lowest assigned rank and its bootstrap for one reference.
+# Vectorised over all ASVs (the full run has >100k ASVs).
 summarise_ref <- function(tax, ref) {
   ranks <- rank_cols(tax)
-  out <- lapply(seq_len(nrow(tax)), function(i) {
-    assigned <- ranks[!is.na(unlist(tax[i, ranks]))]
-    lowest <- if (length(assigned)) tail(assigned, 1) else NA_character_
-    data.frame(
-      ASV_ID = tax$ASV_ID[i], reference = ref,
-      taxonomy = paste(unlist(tax[i, assigned]), collapse = ";"),
-      lowest_rank = lowest,
-      lowest_taxon = if (is.na(lowest)) NA_character_ else tax[i, lowest],
-      lowest_boot = if (is.na(lowest)) NA_integer_ else tax[i, paste0("boot_", lowest)],
-      second_boot = tax[i, paste0("boot_", ranks[2])],
-      stringsAsFactors = FALSE)
-  })
-  do.call(rbind, out)
+  taxa <- as.matrix(tax[, ranks, drop = FALSE])
+  boots <- as.matrix(tax[, paste0("boot_", ranks), drop = FALSE])
+  assigned <- !is.na(taxa)
+  # index of the lowest assigned rank, 0 if nothing is assigned
+  lowest_idx <- max.col(assigned * rep(seq_along(ranks), each = nrow(taxa)), ties.method = "last")
+  lowest_idx[rowSums(assigned) == 0] <- 0L
+  rows <- seq_len(nrow(taxa))
+  has <- lowest_idx > 0
+  # assigned ranks joined with ";" (unassigned ranks skipped)
+  lineage <- rep("", nrow(taxa))
+  for (j in seq_along(ranks)) {
+    add <- assigned[, j]
+    lineage[add] <- ifelse(lineage[add] == "", taxa[add, j], paste(lineage[add], taxa[add, j], sep = ";"))
+  }
+  out <- data.frame(
+    ASV_ID = tax$ASV_ID, reference = rep(ref, nrow(tax)),
+    taxonomy = lineage,
+    lowest_rank = ifelse(has, ranks[pmax(lowest_idx, 1L)], NA_character_),
+    lowest_taxon = ifelse(has, taxa[cbind(rows, pmax(lowest_idx, 1L))], NA_character_),
+    lowest_boot = ifelse(has, boots[cbind(rows, pmax(lowest_idx, 1L))], NA_integer_),
+    second_boot = tax[[paste0("boot_", ranks[2])]],
+    stringsAsFactors = FALSE)
+  out
 }
 
 sum_silva <- summarise_ref(silva, "SILVA")
 sum_pr2 <- summarise_ref(pr2, "PR2")
 
-pick <- function(id, ssu) {
-  s <- sum_silva[sum_silva$ASV_ID == id, ]
-  p <- sum_pr2[sum_pr2$ASV_ID == id, ]
-  if (ssu == "16S") return(s)
-  if (ssu == "18S") return(p)
-  if (nrow(p) && nrow(s) && p$second_boot > s$second_boot) p else s
-}
-chosen <- do.call(rbind, mapply(pick, domains$ASV_ID, domains$ssu, SIMPLIFY = FALSE))
+s <- sum_silva[match(domains$ASV_ID, sum_silva$ASV_ID), ]
+p <- sum_pr2[match(domains$ASV_ID, sum_pr2$ASV_ID), ]
+both <- !is.na(s$ASV_ID) & !is.na(p$ASV_ID)
+use_pr2 <- domains$ssu == "18S" |
+  (domains$ssu == "unknown" & both & !is.na(p$second_boot > s$second_boot) & p$second_boot > s$second_boot)
+chosen <- s
+chosen[use_pr2, ] <- p[use_pr2, ]
+chosen$ASV_ID <- domains$ASV_ID
 chosen$second_boot <- NULL
 
 taxonomy <- merge(domains, chosen, by = "ASV_ID", all.x = TRUE, sort = FALSE)
