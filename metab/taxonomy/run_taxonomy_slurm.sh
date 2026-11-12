@@ -13,6 +13,8 @@
 #
 # Every path below can be overridden without editing the file, e.g.
 #   sbatch --export=ALL,AMPLISEQ_RESULTS=/scratch/rheinnec/other_run/results run_taxonomy_slurm.sh
+# Fresh run without the Nextflow cache:
+#   sbatch --export=ALL,RESUME=false run_taxonomy_slurm.sh
 
 set -euo pipefail
 
@@ -29,6 +31,7 @@ RUN_DIR="${RUN_DIR:-/scratch/rheinnec/taxonomy_run}"
 APPTAINER_CACHE="${APPTAINER_CACHE:-/scratch/rheinnec/apptainer_cache}"
 TAX_CPUS="${TAX_CPUS:-16}"
 TAX_MEMORY="${TAX_MEMORY:-32 GB}"
+RESUME="${RESUME:-true}"        # false = run every step again, ignore the cache
 # -----------------------------------------------------------------------------
 
 for required_file in \
@@ -61,6 +64,10 @@ echo "SILVA:            ${SILVA_DB}"
 echo "PR2:              ${PR2_DB}"
 echo "Container:        ${DADA2_SIF}"
 echo "Run/work dir:     ${RUN_DIR}"
+echo "Resume:           ${RESUME}"
+
+RESUME_ARG=()
+[[ "${RESUME}" == "true" ]] && RESUME_ARG=(-resume)
 
 # Run from RUN_DIR so .nextflow/ and the logs land there, not in the repo.
 cd -- "${RUN_DIR}"
@@ -74,4 +81,4 @@ nextflow run "${REPO_TAXONOMY_DIR}/wfTAXONOMY.nf" \
     --container_dada2 "${DADA2_SIF}" \
     --cpus "${TAX_CPUS}" \
     --memory "${TAX_MEMORY}" \
-    -resume
+    ${RESUME_ARG[@]+"${RESUME_ARG[@]}"}
