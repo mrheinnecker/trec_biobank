@@ -9,7 +9,7 @@
 ## ---- paths ----
 ## hard-coded for running line by line (RStudio); when run with Rscript,
 ## --input / --outdir (or the env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR) take precedence
-default_input      <- "C:/projects/tem_classification/all_annotations_2026-10-15.tsv"
+default_input      <- NA_character_   # NA = read the main sheet from Google Sheets; or a tsv snapshot
 default_outdir     <- "C:/projects/tem_classification"   # -> plots/ and tables/ in here
 default_script_dir <- "C:/repos/tem_classification/analysis"
 
@@ -25,32 +25,20 @@ suppressPackageStartupMessages({
 opt <- parse_args(default_input = default_input, default_outdir = default_outdir)
 
 ## ---- settings ----
-## organelles to cluster on: remove / comment out what should not be used
+## the organelles to cluster on (use_features, include_undescribed) are set in assoc_common.R,
+## shared with the association analysis (04/05)
 ## (features that are too rare / too common are dropped afterwards via min_cells / max_prevalence)
-use_features <- c(
-  #"cell_cover", "nucleus", "nucleolus", 
-  "tricho", "core_vesic", 
-  #"flagell_app", "symbiosis",
-                  "chloropl", "plastoglob", 
-  #"pyrenoid", "pusule", 
-  "retic_net", "electr_sheets", "tubul_net",
-                  "food_vac", "starch", "cryst_rich_RN", 
-  #"eyespot", 
-  "rhabdo", #"ER", "mito", "golgi",
-                  "lipid_drop", 
-  #"fibrous_body", "put_division", "SDV", "lysosome", 
-  "SER_whorls"
-  )
-include_undescribed <- TRUE    # also cluster on the undescribed_<n> structures
 min_cells      <- 10            # drop features present in fewer cells (no information, only noise)
 max_prevalence <- 0.95         # drop features present in more than this fraction of cells (mito, ...)
 k_range        <- 2:10         # candidate numbers of clusters
 k_fixed        <- NA           # set e.g. 4 to override the silhouette choice
+## env TEM_CLUSTER_K (e.g. from launcher.sh) overrides k_fixed; empty = silhouette choice
+if (Sys.getenv("TEM_CLUSTER_K") != "") k_fixed <- as.integer(Sys.getenv("TEM_CLUSTER_K"))
 linkage        <- "ward.D2"
 meta_cols      <- c("site", "size_frac", "sampling_time", "life_status")
 
 ## ---- data ----
-dino <- load_dino_data(opt$input)
+dino <- load_dino_data(opt)
 cor_data <- build_cor_data(dino)
 
 ## organelle columns (retic_net already corrected for cryst_rich_RN in load_dino_data)
@@ -129,6 +117,64 @@ write_tsv(sil_by_k, file.path(opt$table_dir, "clust_silhouette_by_k.tsv"))
 write_tsv(feature_info, file.path(opt$table_dir, "clust_features.tsv"))
 write_tsv(meta_tests, file.path(opt$table_dir, "clust_metadata_tests.tsv"))
 
+## MoBIE collection table: one view/grid per cluster (overview figure: step 10);
+## also written as tab clusters_k<k> into the collection spreadsheet (TEM_COLLECTION_SHEET_URL)
+cluster_collection <- dino %>%
+  select(any_of(collection_cols)) %>%
+  inner_join(cells %>% select(name, cluster, sil_width), by = "name") %>%
+  arrange(cluster, site, name) %>%
+  mutate(group = as.character(cluster), view = group, grid = group, sil_width = round(sil_width, 3)) %>%
+  select(any_of(collection_cols), group, sil_width) %>%
+  left_join(cells %>% select(name, all_of(used_feats)), by = "name")
+collection_dir <- file.path(opt$table_dir, "collections")
+dir.create(collection_dir, showWarnings = FALSE, recursive = TRUE)
+cluster_tab <- paste0("clusters_k", k)
+write_tsv(cluster_collection, file.path(collection_dir, paste0(cluster_tab, ".tsv")), na = "")
+push_collection_tabs(set_names(list(cluster_collection), cluster_tab), opt)
+
+## tree of the clustering for the combined tree + images figure of step 10:
+## leaves (cell, position in the tree order, cluster, colour) and merges (hclust convention:
+## negative = leaf number, positive = earlier merge step)
+write_tsv(tibble(name = hc$labels, leaf_pos = match(seq_along(hc$labels), hc$order),
+                 cluster = as.character(cells$cluster), color = unname(cluster_cols[as.character(cells$cluster)])),
+          file.path(opt$table_dir, paste0("clust_tree_k", k, "_leaves.tsv")))
+write_tsv(tibble(step = seq_len(nrow(hc$merge)), left = hc$merge[, 1], right = hc$merge[, 2], height = hc$height),
+          file.path(opt$table_dir, paste0("clust_tree_k", k, "_merges.tsv")))
+
+## ---- taxonomic class (taxo_class, filled for some cells) per cluster ----
+## cells of the analysis with a taxo_class; cells dropped before clustering -> "not clustered"
+taxo_cells <- dino %>%
+  filter(!is.na(taxo_class), str_trim(as.character(taxo_class)) != "") %>%
+  select(name, site, taxo_class) %>%
+  left_join(cells %>% select(name, cluster), by = "name") %>%
+  mutate(cluster = fct_na_value_to_level(factor(cluster, levels(cells$cluster)), "not clustered")) %>%
+  arrange(taxo_class, cluster, name)
+write_tsv(taxo_cells, file.path(opt$table_dir, "clust_taxo_class_cells.tsv"))
+
+if (nrow(taxo_cells) > 0) {
+  taxo_counts <- taxo_cells %>%
+    count(taxo_class, cluster, .drop = FALSE) %>%
+    group_by(taxo_class) %>%
+    mutate(frac = n / sum(n), taxo_label = sprintf("%s (n = %d)", taxo_class, sum(n))) %>%
+    ungroup()
+  write_tsv(taxo_counts %>% select(taxo_class, cluster, n) %>% pivot_wider(names_from = cluster, values_from = n),
+            file.path(opt$table_dir, "clust_taxo_class_counts.tsv"))
+
+  p_taxo <- ggplot(taxo_counts, aes(cluster, fct_rev(taxo_label), fill = frac)) +
+    geom_tile(colour = "white", linewidth = 1) +
+    geom_text(aes(label = if_else(n > 0, as.character(n), ""), colour = frac > 0.6), size = 3.5) +
+    scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1a1a1a"), guide = "none") +
+    scale_fill_gradient(low = "#f4f8fd", high = "#184f95", limits = c(0, 1), labels = scales::percent,
+                        name = "share of\nthe class") +
+    labs(x = NULL, y = NULL, title = "Taxonomic class per cluster",
+         subtitle = sprintf("dinoflagellates with taxo_class, k = %d | numbers = cells", k)) +
+    theme_minimal() +
+    theme(panel.grid = element_blank(), plot.title.position = "plot")
+
+  save_plot(p_taxo, "clust_taxo_class", 2.5 + 0.7 * nlevels(taxo_counts$cluster),
+            1.5 + 0.4 * n_distinct(taxo_counts$taxo_class), opt$plot_dir)
+}
+
 ## ---- 1) choice of k ----
 p_sil <- ggplot(sil_by_k, aes(k, mean_sil)) +
   geom_line(colour = "grey50") +
@@ -200,6 +246,40 @@ for (ext in c("pdf", "png")) {
   draw(ht, merge_legend = TRUE)
   dev.off()
 }
+
+## the same annotation tracks + presence/absence for the combined tree figure of step 10:
+## per cell the metadata values with their colours (as in the heatmap) and the 0/1 organelles;
+## per organelle its group, row order (clustered within the group, as in the heatmap) and prevalence
+track_palettes <- list(cluster       = cluster_cols,
+                       site          = meta_palette(cells$site, "Set2"),
+                       size_frac     = meta_palette(cells$size_frac, "Pastel1"),
+                       sampling_time = meta_palette(cells$sampling_time, "Accent"),
+                       life_status   = meta_palette(cells$life_status, "Greys"))
+tracks <- tibble(name = cells$name)
+for (tr in names(track_palettes)) {
+  v <- as.character(cells[[tr]])
+  tracks[[tr]] <- v
+  tracks[[paste0(tr, "_color")]] <- unname(coalesce(track_palettes[[tr]][v], "#FFFFFF"))
+}
+## taxonomic class where annotated (bottom track + coloured frame around the image in step 10)
+taxo <- dino %>% select(name, taxo_class) %>%
+  mutate(taxo_class = na_if(str_trim(as.character(taxo_class)), ""))
+taxo_lv <- sort(unique(na.omit(taxo$taxo_class)))
+taxo_pal <- setNames(c("#E41A1C", "#377EB8", "#984EA3", "#FF7F00", "#A65628", "#F781BF", "#4DAF4A")[seq_along(taxo_lv)], taxo_lv)
+tracks <- tracks %>%
+  left_join(taxo, by = "name") %>%
+  mutate(taxo_class_color = unname(coalesce(taxo_pal[taxo_class], "#FFFFFF")))
+tracks <- bind_cols(tracks, as_tibble(mat))
+write_tsv(tracks, file.path(opt$table_dir, paste0("clust_tree_k", k, "_tracks.tsv")), na = "")
+
+row_info <- tibble(feature = used_feats, group = feat_group, prevalence = colMeans(mat)) %>%
+  group_by(group) %>%
+  mutate(order_in_group = if (n() > 2) {
+    match(feature, feature[hclust(dist(t(mat[, feature, drop = FALSE]), method = "binary"))$order])
+  } else seq_len(n())) %>%
+  ungroup() %>%
+  arrange(group, order_in_group)
+write_tsv(row_info, file.path(opt$table_dir, paste0("clust_tree_k", k, "_rows.tsv")))
 
 ## ---- 3) PCoA of the Jaccard distances ----
 pcoa <- cmdscale(d, k = 2, eig = TRUE)

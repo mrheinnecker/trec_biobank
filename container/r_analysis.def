@@ -1,0 +1,39 @@
+# R container for the TEM annotation scripts:
+#   analysis/ (00-06, run_analysis.sh) and annotations/ (make_split_collection_tables.R,
+#   migrate_annotation_rounds.R).
+# rocker/tidyverse ships R 4.4.2 + tidyverse (incl. googlesheets4, googledrive, httr) and installs
+# CRAN packages as binaries from a dated Posit package manager snapshot.
+#
+# build:  apptainer build --fakeroot r_analysis.sif container/r_analysis.def
+# use:    R_SIF=/path/to/r_analysis.sif BINDS=/mnt/c,/tmp bash analysis/run_analysis.sh <outdir>
+
+Bootstrap: docker
+From: rocker/tidyverse:4.4.2
+
+%labels
+    Author marco
+    Tool R 4.4.2 + tidyverse, googlesheets4, getopt, cowplot, patchwork, lme4, cluster, ComplexHeatmap; python3 + Pillow
+    Description TEM annotation distribution and analysis
+
+%environment
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%post
+    set -e
+    apt-get update
+    apt-get install -y --no-install-recommends cmake libpng-dev libglpk-dev \
+        python3 python3-pil fonts-dejavu-core
+    rm -rf /var/lib/apt/lists/*
+
+    install2.r --error --skipinstalled \
+        getopt cowplot patchwork lme4 cluster BiocManager
+
+    Rscript -e 'BiocManager::install("ComplexHeatmap", update = FALSE, ask = FALSE)'
+
+    ## fail the build if anything is missing
+    Rscript -e 'pkgs <- c("tidyverse", "googlesheets4", "googledrive", "httr", "getopt", "cowplot", "patchwork", "lme4", "cluster", "ComplexHeatmap"); for (p in pkgs) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("all packages load\n")'
+
+%test
+    Rscript -e 'library(lme4); library(ComplexHeatmap); library(googlesheets4)'
+    python3 -c 'import PIL'
