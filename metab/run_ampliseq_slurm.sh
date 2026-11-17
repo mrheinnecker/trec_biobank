@@ -31,10 +31,30 @@ for required_file in "${PARAMS_FILE}" "${CONFIG_FILE}" "${RESOURCES_CONFIG}"; do
     fi
 done
 
+# Load Nextflow from the cluster modules, so the job does not depend on the
+# shell it was submitted from. The module brings a Java >= 17, which current
+# nf-core plugins need. Pin a version with e.g. NXF_MODULE=Nextflow/25.10.2;
+# NXF_MODULE="" skips the module and uses whatever nextflow is on the PATH.
+NXF_MODULE="${NXF_MODULE-Nextflow}"
+if [[ -n "${NXF_MODULE}" ]]; then
+    if ! command -v module >/dev/null 2>&1; then
+        for init in /etc/profile.d/lmod.sh /etc/profile.d/modules.sh /usr/share/lmod/lmod/init/bash; do
+            if [[ -r "${init}" ]]; then
+                # shellcheck disable=SC1090
+                set +u; source "${init}"; set -u
+                break
+            fi
+        done
+    fi
+    set +u; module load "${NXF_MODULE}"; set -u
+fi
+
 if ! command -v nextflow >/dev/null 2>&1; then
     echo "Error: Nextflow is not available. Load the appropriate cluster module." >&2
     exit 2
 fi
+echo "Nextflow:        $(command -v nextflow)"
+echo "Java:            $(java -version 2>&1 | head -1)"
 
 if ! command -v apptainer >/dev/null 2>&1 && ! command -v singularity >/dev/null 2>&1; then
     echo "Error: neither Apptainer nor Singularity is available." >&2
