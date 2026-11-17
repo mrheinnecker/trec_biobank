@@ -11,6 +11,9 @@
 ## outlines: for features with a significant GLMM site test, one model per site,
 ##       present ~ this site vs. all others + (1 | sample), Wald test of the site term
 ##       p < 0.05 -> that site has clearly more (solid) / fewer (dashed) cells with the feature
+## organelles: only use_features (assoc_common.R, the same selection as the association analyses)
+## samples: one sample = one barcode in source_name (= one sampling date + size fraction at a site);
+##       the top bar is split into the samples, the site labels give the number of samples / dates
 
 ## ---- paths ----
 ## hard-coded for running line by line (RStudio); when run with Rscript,
@@ -22,13 +25,28 @@ default_script_dir <- "C:/repos/tem_classification/analysis"
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]
 script_dir  <- if (is.na(script_file)) default_script_dir else dirname(normalizePath(sub("^--file=", "", script_file)))
 source(file.path(script_dir, "common.R"))
+source(file.path(script_dir, "assoc_common.R"))
 suppressPackageStartupMessages({
   library(lme4)
   library(patchwork)
 })
 opt <- parse_args(default_input = default_input, default_outdir = default_outdir)
 
-dino <- load_dino_data(opt)
+dino <- load_dino_data(opt) %>%
+  mutate(sample        = str_extract(source_name, "(?<=_)\\d{9}(?=_[A-Z]{3}_)"),
+         sampling_date = str_match(source_name, "_\\d{9}_[A-Z]{3}_[^_]+_(\\d{8})_")[, 2],
+         sampling_date = format(as.Date(sampling_date, "%Y%m%d"), "%Y-%m-%d"))
+
+## cells per sample (barcode) and site, with date, size fraction and time
+samples <- dino %>%
+  count(site, sample, sampling_date, size_frac, sampling_time, name = "n_cells") %>%
+  arrange(site, sampling_date, sample)
+write_tsv(samples, file.path(opt$table_dir, "site_samples.tsv"))
+samples_per_site <- samples %>%
+  group_by(site) %>%
+  summarise(n_samples = n_distinct(sample), n_dates = n_distinct(sampling_date), .groups = "drop") %>%
+  mutate(label = sprintf("%s\n%d / %d", site, n_samples, n_dates))
+site_labels <- setNames(samples_per_site$label, samples_per_site$site)
 
 glmm_site_p <- function(d) {
   ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 1e5))
@@ -47,7 +65,6 @@ site_feature_plot <- function(annot, feature_cols, feat_groups = list()) {
     tally()
 
   feat_long <- annot %>%
-    mutate(sample = str_extract(source_name, "(?<=_)\\d{9}(?=_[A-Z]{3}_)")) %>%
     select(site, sample, all_of(feature_cols)) %>%
     pivot_longer(cols = all_of(feature_cols)) %>%
     filter(!is.na(value))
@@ -132,6 +149,8 @@ site_feature_plot <- function(annot, feature_cols, feat_groups = list()) {
     ## black text on the bright end of the colour scale (relative to the max of this plot)
     geom_text(aes(label = n_abs, colour = ifelse(frac > 0.75 * max(frac), "black", "white"))) +
     scale_fill_viridis_c(option = "inferno") +
+    scale_x_discrete(labels = site_labels) +
+    labs(x = "site\n(samples / sampling dates)") +
     scale_colour_identity() +
     scale_linetype_manual(values = c(more = "solid", fewer = "22"), drop = FALSE,
                           limits = c("more", "fewer"), name = "site effect (GLMM sign.)") +
@@ -160,9 +179,17 @@ site_feature_plot <- function(annot, feature_cols, feat_groups = list()) {
     summarize(n_tot = sum(n_abs)) %>%
     add_feat_info()
 
-  p_bar <- ggplot(tot_cells_per_site, aes(y = n, x = site)) +
-    geom_col() +
-    geom_text(aes(label = n), vjust = -0.3, size = 3) +
+  ## cells per site, split into the samples (white lines), largest sample at the bottom
+  sample_cells <- annot %>%
+    count(site, sample, sampling_date) %>%
+    group_by(site) %>%
+    arrange(desc(n), .by_group = TRUE) %>%
+    mutate(sample = factor(sample, unique(sample))) %>%
+    ungroup()
+  p_bar <- ggplot(sample_cells, aes(y = n, x = site)) +
+    geom_col(aes(group = fct_rev(sample)), fill = "grey35", colour = "white", linewidth = 0.4) +
+    geom_text(data = tot_cells_per_site, aes(label = n), vjust = -0.3, size = 3) +
+    labs(y = "cells\n(bar segments\n= samples)") +
     scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
     theme(
       axis.title.x = element_blank(),
@@ -173,9 +200,11 @@ site_feature_plot <- function(annot, feature_cols, feat_groups = list()) {
   p_side <- ggplot(tot_per_feature, aes(x = n_tot, y = name)) +
     geom_col() +
     geom_text(aes(label = n_tot), hjust = -0.2, size = 3) +
-    scale_x_continuous(expand = expansion(mult = c(0, 0.35))) +
+    scale_x_continuous(expand = expansion(mult = c(0, 0.6)), breaks = function(lim) { b <- pretty(c(0, lim[2] / 1.6), n = 2); b <- b[b <= lim[2] / 1.6]; b[c(1, length(b))] }) +
+    coord_cartesian(clip = "off") +
     group_facets +
     theme(
+      strip.text.y = element_text(size = 6),
       axis.title.y = element_blank(),
       axis.text.y  = element_blank(),
       axis.ticks.y = element_blank()
@@ -197,9 +226,9 @@ save_site_feature_results <- function(res, prefix, width, height) {
 
 ## organelles: chloroplast related, common organelles, the rest specific
 ## (same groups as the association heatmap)
-org_res <- site_feature_plot(dino, organelle_cols(dino),
+org_res <- site_feature_plot(dino, use_features,
                              feat_groups = list(chloroplast = chloro_feats, common = common_feats))
-save_site_feature_results(org_res, "orgs_per_site", 9, 9)
+save_site_feature_results(org_res, "orgs_per_site", 9, 3 + 0.3 * length(use_features))
 
 ## undescribed organelles
 udo_cols <- undescribed_cols(dino)

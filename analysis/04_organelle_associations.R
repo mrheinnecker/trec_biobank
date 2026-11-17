@@ -20,7 +20,7 @@ opt <- parse_args(default_input = default_input, default_outdir = default_outdir
 
 dino <- load_dino_data(opt)
 cor_data <- build_cor_data(dino)
-feats <- assoc_features(dino)
+feats <- assoc_features(dino, verbose = TRUE)
 
 pairs <- combn(feats, 2, simplify = FALSE) %>%
   map_dfr(~ tibble(var1 = .x[1], var2 = .x[2]))

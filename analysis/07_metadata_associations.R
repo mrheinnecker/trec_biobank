@@ -22,7 +22,7 @@ opt <- parse_args(default_input = default_input, default_outdir = default_outdir
 
 dino <- load_dino_data(opt)
 cor_data <- build_cor_data(dino)
-feats <- assoc_features(dino)
+feats <- assoc_features(dino, verbose = TRUE)
 meta <- assoc_metadata(cor_data)
 message("metadata: ", paste(meta, collapse = ", "))
 

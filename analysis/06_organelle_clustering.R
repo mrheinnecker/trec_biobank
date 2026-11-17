@@ -42,10 +42,8 @@ dino <- load_dino_data(opt)
 cor_data <- build_cor_data(dino)
 
 ## organelle columns (retic_net already corrected for cryst_rich_RN in load_dino_data)
-unknown <- setdiff(use_features, names(dino))
-if (length(unknown) > 0) stop("use_features not in the data: ", paste(unknown, collapse = ", "))
-feature_cols <- use_features
-if (include_undescribed) feature_cols <- c(feature_cols, undescribed_cols(dino))
+## (features in < min_feature_cells cells are already removed by assoc_features)
+feature_cols <- assoc_features(dino, verbose = TRUE)
 
 cells <- cor_data %>%
   mutate(name = dino$name) %>%

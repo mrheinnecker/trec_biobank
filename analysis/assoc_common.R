@@ -15,7 +15,7 @@ use_features <- c(
   #"fibrous_body", "put_division", "SDV", 
   #"ER", "mito", "golgi", ## every cell has it
   ## to be discussed: 
-  # "pyrenoid", ### ASK: less likely to cut i guess? 
+  "pyrenoid", ### ASK: less likely to cut i guess? 
   # "lysosome", ## a bit difficult to annotate... noidsy ... per person bias
   "tricho", 
   "core_vesic",  
@@ -32,15 +32,23 @@ use_features <- c(
   "SER_whorls" ## 
   )
 include_undescribed <- TRUE    # also use the undescribed_<n> structures
+min_feature_cells   <- 10      # features present in fewer cells are dropped before all analyses (04-09)
 
 ## nominal columns (some coded as numbers, but without order) -> treat as categorical
 nominal_cols <- c("site", "size_frac", "sampling_time", "life_status", "major_group")
 
-## organelle features of the analyses: use_features (+ undescribed_<n> if include_undescribed)
-assoc_features <- function(dino) {
+## organelle features of the analyses: use_features (+ undescribed_<n> if include_undescribed),
+## without the features present in fewer than min_feature_cells cells (too rare to trust)
+assoc_features <- function(dino, verbose = FALSE) {
   unknown <- setdiff(use_features, names(dino))
   if (length(unknown) > 0) stop("use_features not in the data: ", paste(unknown, collapse = ", "))
-  c(use_features, if (include_undescribed) undescribed_cols(dino))
+  feats <- c(use_features, if (include_undescribed) undescribed_cols(dino))
+  n_present <- map_int(feats, ~ sum(suppressWarnings(as.numeric(dino[[.x]])) == 1, na.rm = TRUE))
+  rare <- n_present < min_feature_cells
+  if (verbose && any(rare))
+    message(sprintf("%d features in < %d cells dropped: %s", sum(rare), min_feature_cells,
+                    paste0(feats[rare], " (", n_present[rare], ")", collapse = ", ")))
+  feats[!rare]
 }
 
 ## metadata the organelles are tested against (07/08); columns with only one value are dropped
