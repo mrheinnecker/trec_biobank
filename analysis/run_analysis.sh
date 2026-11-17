@@ -2,8 +2,8 @@
 ## Runs the TEM annotation analysis scripts in order inside an R container.
 ##
 ## usage: run_analysis.sh <outdir> [step ...]
-##   steps: 01 02 03 04 05 06 07 08 09 10 (default: all); 05 and 09 need the output of 04,
-##          08 that of 07, 10 that of 06 / 09
+##   steps: 01 02 03 04 05 06 07 08 09 10 11 12 (default: all); 05 and 09 need the output of 04,
+##          08 that of 07, 10 that of 06 / 09, 12 that of 11
 ##   Every run writes into its own folder <outdir>/<YYYYmmdd_HHMMSS>_round<ROUNDS>/
 ##   (plots/ and tables/). First the main annotation sheet is downloaded into
 ##   tables/annotations_main.tsv of that folder (00_download_annotations.R); all steps use it.
@@ -20,7 +20,7 @@ if [[ $# -lt 1 ]]; then
 fi
 
 base_outdir=$1; shift 1
-steps=("$@"); [[ ${#steps[@]} -eq 0 ]] && steps=(01 02 03 04 05 06 07 08 09 10)
+steps=("$@"); [[ ${#steps[@]} -eq 0 ]] && steps=(01 02 03 04 05 06 07 08 09 10 11 12)
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 R_SIF=${R_SIF:-/g/schwab/marco/container_legacy/tidyverse_latest.sif}

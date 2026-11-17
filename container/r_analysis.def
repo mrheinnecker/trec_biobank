@@ -1,5 +1,5 @@
 # R container for the TEM annotation scripts:
-#   analysis/ (00-06, run_analysis.sh) and annotations/ (make_split_collection_tables.R,
+#   analysis/ (00-12, run_analysis.sh) and annotations/ (make_split_collection_tables.R,
 #   migrate_annotation_rounds.R).
 # rocker/tidyverse ships R 4.4.2 + tidyverse (incl. googlesheets4, googledrive, httr) and installs
 # CRAN packages as binaries from a dated Posit package manager snapshot.
@@ -12,7 +12,7 @@ From: rocker/tidyverse:4.4.2
 
 %labels
     Author marco
-    Tool R 4.4.2 + tidyverse, googlesheets4, getopt, cowplot, patchwork, lme4, cluster, ComplexHeatmap; python3 + Pillow
+    Tool R 4.4.2 + tidyverse, googlesheets4, getopt, cowplot, patchwork, lme4, cluster, ComplexHeatmap, sf, rnaturalearth; python3 + Pillow
     Description TEM annotation distribution and analysis
 
 %environment
@@ -23,17 +23,19 @@ From: rocker/tidyverse:4.4.2
     set -e
     apt-get update
     apt-get install -y --no-install-recommends cmake libpng-dev libglpk-dev \
+        libgdal-dev libgeos-dev libproj-dev libudunits2-dev \
         python3 python3-pil fonts-dejavu-core
     rm -rf /var/lib/apt/lists/*
 
     install2.r --error --skipinstalled \
-        getopt cowplot patchwork lme4 cluster BiocManager
+        getopt cowplot patchwork lme4 cluster BiocManager \
+        sf rnaturalearth rnaturalearthdata
 
     Rscript -e 'BiocManager::install("ComplexHeatmap", update = FALSE, ask = FALSE)'
 
     ## fail the build if anything is missing
-    Rscript -e 'pkgs <- c("tidyverse", "googlesheets4", "googledrive", "httr", "getopt", "cowplot", "patchwork", "lme4", "cluster", "ComplexHeatmap"); for (p in pkgs) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("all packages load\n")'
+    Rscript -e 'pkgs <- c("tidyverse", "googlesheets4", "googledrive", "httr", "getopt", "cowplot", "patchwork", "lme4", "cluster", "ComplexHeatmap", "sf", "rnaturalearth", "rnaturalearthdata"); for (p in pkgs) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("all packages load\n")'
 
 %test
-    Rscript -e 'library(lme4); library(ComplexHeatmap); library(googlesheets4)'
+    Rscript -e 'library(lme4); library(ComplexHeatmap); library(googlesheets4); library(sf); library(rnaturalearth)'
     python3 -c 'import PIL'

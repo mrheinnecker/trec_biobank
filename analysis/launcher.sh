@@ -29,7 +29,7 @@ export ROUNDS=1
 ##   09 collection tables of the negative organelle pairs -> Google sheet (TEM_COLLECTION_SHEET_URL)
 ##   10 overview figures (JPEG montages) of the collection tables of 06 (clusters) and 09 (pairs)
 ##   (05 and 09 need 04, 08 needs 07, 10 needs 09 in the same run)
-STEPS="01 02 03 04 05 06 07 08 09 10"
+STEPS="01 02 03 04 05 06 07 08 09 10 11 12"
 
 ## spreadsheet for the collection tables of step 09 (the service account
 ## nextflow-gsheets@trec-tem-screen.iam.gserviceaccount.com needs edit access); empty = only local tsv
