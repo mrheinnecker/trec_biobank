@@ -13,7 +13,7 @@ taxonomy_dir <- file.path(base_dir, "ampliseq_2026-11-03/results/taxonomy")
 mapping_f    <- file.path(base_dir, "sample_mapping.tsv")     # from metab/make_sample_mapping.R
 # Tara Oceans W4 barcode database (V9, with trophic modes per taxon), for 05_trophic_modes.R
 w4_db_f      <- file.path(if (.Platform$OS.type == "windows") "C:/projects" else "/mnt/c/projects",
-                          "tem_classification/analysis/databases/Database_W4_barcode_occurences.tsv")
+                          "trec_biobank/analysis/databases/Database_W4_barcode_occurences.tsv")
 
 out_dir   <- file.path(base_dir, "analysis")
 data_dir  <- file.path(out_dir, "data")      # prepared R objects (01_)

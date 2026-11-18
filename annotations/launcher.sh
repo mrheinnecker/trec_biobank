@@ -3,9 +3,9 @@
 
 apptainer shell -B /home -B /scratch -B /g /g/schwab/marco/container_legacy/tidyverse_latest.sif
 
-cd /g/schwab/marco/repos/tem_classification
+cd /g/schwab/marco/repos/trec_biobank
 
-KEY=/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json
+KEY=/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json
 ANNOTATION_SHEET="https://docs.google.com/spreadsheets/d/1NDyVERdrl7nXJrQRWBbwHjyHCMNEZhj1RQnBKUObwuU/edit?gid=0#gid=0"
 TEM_COLLECTION="https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=2014112369#gid=2014112369"
 

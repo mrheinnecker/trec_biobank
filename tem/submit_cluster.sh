@@ -18,7 +18,7 @@ bash "${script_dir}/main.sh" \
   --dryrun_n "${DRYRUN_N:-10}" \
   --sheet_mode "${SHEET_MODE:-google}" \
   --sheet_url "${SHEET_URL:-https://docs.google.com/spreadsheets/d/143uVeeJ72SQE5eK01lzWYCEiT7pJUF3lX7hJl3R9s9I/edit?gid=258669282#gid=258669282}" \
-  --google_key "${GOOGLE_KEY:-/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json}" \
+  --google_key "${GOOGLE_KEY:-/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json}" \
   --collection_table_url "${COLLECTION_TABLE_URL:-https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=1643802951#gid=1643802951}" \
   --collection_table_sheet "${COLLECTION_TABLE_SHEET:-tem_collection_table}" \
   --workflow_stage "${WORKFLOW_STAGE:-all}" \

@@ -2,13 +2,13 @@
 
 ## run gregoires full workflow
 
-sbatch /g/schwab/marco/repos/tem_classification/MainLine/Segmenting/microsamsegmenting.sh
+sbatch /g/schwab/marco/repos/trec_biobank/MainLine/Segmenting/microsamsegmenting.sh
 
-sbatch /g/schwab/marco/repos/tem_classification/MainLine/Segmenting/maskmerge.sh
+sbatch /g/schwab/marco/repos/trec_biobank/MainLine/Segmenting/maskmerge.sh
 
-sbatch /g/schwab/marco/repos/tem_classification/MainLine/Extraction/getimages.sh
+sbatch /g/schwab/marco/repos/trec_biobank/MainLine/Extraction/getimages.sh
 
-sbatch /g/schwab/marco/repos/tem_classification/MainLine/Embedding/dinov2.sh
+sbatch /g/schwab/marco/repos/trec_biobank/MainLine/Embedding/dinov2.sh
 
 
 module load Mamba/4.14.0-0
@@ -20,7 +20,7 @@ conda activate /g/schwab/marco/conda_microsam
 
 
 ## move to directory where scripts are in
-cd /g/schwab/marco/repos/tem_classification/MainLine/Classifying
+cd /g/schwab/marco/repos/trec_biobank/MainLine/Classifying
 
 
 ## from here scripts need to be executed from within python (maybe ill change this)

@@ -27,7 +27,7 @@ Each workflow is implemented in Nextflow and has its dependencies handled via Ap
 The current implementation is optimized for the EMBL Slurm HPC environment. Every imaging workflow has a launcher in the repo root (`launch_wf<MODALITY>.sh`) that holds the complete run definition: input sheet, collection table, paths, S3 target and workflow stage. Edit the launcher, then submit it:
 
 ```bash
-sbatch /g/schwab/marco/repos/tem_classification/launch_wfTEM.sh
+sbatch /g/schwab/marco/repos/trec_biobank/launch_wfTEM.sh
 ```
 
 The launcher runs as one Slurm job (2 CPUs, 16 GB, 24 h by default, logs in `/scratch/rheinnec/<modality>_screen/`). The first argument of the `*_main.sh` call inside it selects where the Nextflow tasks run:

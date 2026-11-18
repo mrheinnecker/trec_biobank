@@ -20,7 +20,7 @@ timestamp="$(date +%Y-%m-%d_%H-%M)"
 
 #timestamp="2026-06-01_20-54"
 
-repo_dir="/g/schwab/marco/repos/tem_classification"
+repo_dir="/g/schwab/marco/repos/trec_biobank"
 cd /scratch/rheinnec/hitt_screen
 # HITT workflow
 # To use a local table instead, replace the sheet options with:

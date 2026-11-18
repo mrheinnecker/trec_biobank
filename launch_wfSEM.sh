@@ -14,7 +14,7 @@ set -euo pipefail
 
 timestamp="$(date +%Y-%m-%d_%H-%M)"
 
-repo_dir="/g/schwab/marco/repos/tem_classification"
+repo_dir="/g/schwab/marco/repos/trec_biobank"
 scratch_dir="/scratch/rheinnec/sem_screen"
 
 mkdir -p "${scratch_dir}"

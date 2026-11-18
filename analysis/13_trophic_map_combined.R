@@ -22,7 +22,7 @@
 ## --input / --outdir (or the env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR) take precedence
 default_input      <- NA_character_   # not read here (only the tables of 11 and of the metab analysis)
 default_outdir     <- "C:/projects/trec_biobank"   # -> plots/ and tables/ in here
-default_script_dir <- "C:/repos/tem_classification/analysis"
+default_script_dir <- "C:/repos/trec_biobank/analysis"
 default_metab_table <- file.path(if (.Platform$OS.type == "windows") "C:/projects" else "/mnt/c/projects",
                                  "trec_biobank/metab/analysis/tables/06_trophic_modes_site_fraction.tsv")
 

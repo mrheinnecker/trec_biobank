@@ -28,7 +28,7 @@ opt <- getopt(spec)
 #   sheet_mode = "google",
 #   sheet_url = "https://docs.google.com/spreadsheets/d/REPLACE_WITH_EXM_INPUT_SHEET_ID/edit?gid=0#gid=0",
 #   sheet_name = "exm_input_table",
-#   google_key = "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json",
+#   google_key = "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json",
 #   outdir = "/scratch/rheinnec/central_data_processing/exm_screen",
 #   dryrun = "FALSE",
 #   dryrun_n = 2L,

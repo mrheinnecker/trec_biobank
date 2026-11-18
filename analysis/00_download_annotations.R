@@ -6,7 +6,7 @@
 
 ## ---- paths ----
 default_outdir     <- "C:/projects/trec_biobank"
-default_script_dir <- "C:/repos/tem_classification/analysis"
+default_script_dir <- "C:/repos/trec_biobank/analysis"
 
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]
 script_dir  <- if (is.na(script_file)) default_script_dir else dirname(normalizePath(sub("^--file=", "", script_file)))

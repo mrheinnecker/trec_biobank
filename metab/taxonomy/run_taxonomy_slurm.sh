@@ -21,7 +21,7 @@ set -euo pipefail
 # --- adjust these paths ------------------------------------------------------
 # sbatch runs a copy of this script from the spool directory, so the repo
 # location cannot be derived from the script path.
-REPO_TAXONOMY_DIR="${REPO_TAXONOMY_DIR:-/g/schwab/marco/repos/tem_classification/metab/taxonomy}"
+REPO_TAXONOMY_DIR="${REPO_TAXONOMY_DIR:-/g/schwab/marco/repos/trec_biobank/metab/taxonomy}"
 AMPLISEQ_RESULTS="${AMPLISEQ_RESULTS:-/scratch/rheinnec/ampliseq_run/results}"
 REFDB="${REFDB:-/g/schwab/marco/refdb/metab}"
 SILVA_DB="${SILVA_DB:-${REFDB}/silva_nr99_v138.2_toGenus_trainset.fa.gz}"

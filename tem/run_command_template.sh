@@ -6,14 +6,14 @@ echo "Template only: copy one command block from this file and run it manually."
 exit 0
 
 # Full cluster production run.
-bash /g/schwab/marco/repos/tem_classification/tem/main.sh \
+bash /g/schwab/marco/repos/trec_biobank/tem/main.sh \
   --profile cluster \
   --resume TRUE \
   --dryrun FALSE \
   --dryrun_n 10 \
   --sheet_mode google \
   --sheet_url "https://docs.google.com/spreadsheets/d/143uVeeJ72SQE5eK01lzWYCEiT7pJUF3lX7hJl3R9s9I/edit?gid=258669282#gid=258669282" \
-  --google_key "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json" \
+  --google_key "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json" \
   --collection_table_url "https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=1643802951#gid=1643802951" \
   --collection_table_sheet "tem_collection_table" \
   --workflow_stage all \
@@ -28,14 +28,14 @@ bash /g/schwab/marco/repos/tem_classification/tem/main.sh \
   --gradient_downsample 16
 
 # Interactive cluster debugging after allocating a node.
-bash /g/schwab/marco/repos/tem_classification/tem/main.sh \
+bash /g/schwab/marco/repos/trec_biobank/tem/main.sh \
   --profile interactive \
   --resume TRUE \
   --dryrun FALSE \
   --dryrun_n 10 \
   --sheet_mode google \
   --sheet_url "https://docs.google.com/spreadsheets/d/143uVeeJ72SQE5eK01lzWYCEiT7pJUF3lX7hJl3R9s9I/edit?gid=258669282#gid=258669282" \
-  --google_key "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json" \
+  --google_key "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json" \
   --collection_table_url "https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=1643802951#gid=1643802951" \
   --collection_table_sheet "tem_collection_table" \
   --workflow_stage all \
@@ -50,7 +50,7 @@ bash /g/schwab/marco/repos/tem_classification/tem/main.sh \
   --gradient_downsample 16
 
 # Local Windows discovery run with copied test files.
-bash C:/repos/tem_classification/tem/main.sh \
+bash C:/repos/trec_biobank/tem/main.sh \
   --profile local \
   --resume TRUE \
   --dryrun TRUE \

@@ -193,7 +193,7 @@ dev.off()
 
 # 
 # 
-# cache_dir <- "/g/schwab/marco/repos/tem_classification/tem/gargle_cache"
+# cache_dir <- "/g/schwab/marco/repos/trec_biobank/tem/gargle_cache"
 # 
 # 
 # 

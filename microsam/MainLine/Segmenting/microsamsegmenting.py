@@ -30,7 +30,7 @@ img = np.asarray(img)
 h,w=img.shape
 print(img.shape)
 
-os.mkdir("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n)
+os.mkdir("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n)
 
 for i in range(tilenb):
     for j in range(tilenb):
@@ -49,7 +49,7 @@ for i in range(tilenb):
         #image = Image.fromarray(image.astype(np.uint16))
         # Save the image
         #image.save("/g/schwab/GregoireMichelDeletie/Ines/ref_"+n+".png")
-        mask.save(f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_{i}{j}.png")
+        mask.save(f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_{i}{j}.png")
         # Visualize the image and corresponding instance segmentation result.
         print(np.max(mask))
         

@@ -25,7 +25,7 @@
 ##
 ## Example (cluster, tidyverse container):
 ## Rscript annotations/migrate_annotation_rounds.R \
-##   --google_key /g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json \
+##   --google_key /g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json \
 ##   --outdir /g/schwab/tem_screen/annotations/migration_rounds \
 ##   --write FALSE
 
@@ -66,7 +66,7 @@ people <- str_split(opt_or(opt$assignees, "marco,chandni,yannick,karel,viktoria"
   str_to_lower() %>%
   discard(~.x == "")
 sheet_mode <- opt_or(opt$sheet_mode, "google")
-google_key <- opt_or(opt$google_key, "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json")
+google_key <- opt_or(opt$google_key, "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json")
 collection_table_url <- opt_or(
   opt$collection_table_url,
   "https://docs.google.com/spreadsheets/d/1NDyVERdrl7nXJrQRWBbwHjyHCMNEZhj1RQnBKUObwuU/edit?gid=0#gid=0"

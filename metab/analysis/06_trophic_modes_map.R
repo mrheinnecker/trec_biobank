@@ -4,14 +4,14 @@
 # of that site and size fraction (every sample weighted equally). The bars of a site stand
 # side by side on the site's position (size fractions small to large); sites that are too
 # close to each other are moved by `dx` / `dy` (map units, m) with a line to the real position.
-# Same map as tem_classification/analysis/12_chloro_foodvac_map.R (orthographic projection,
+# Same map as trec_biobank/analysis/12_chloro_foodvac_map.R (orthographic projection,
 # Natural Earth countries).
 # Input:  tables/05_trophic_mode_per_sample.tsv of 05_trophic_modes.R (run 05 first)
 # Output: plots/06_trophic_modes_map_dinoflagellates, plots/06_trophic_modes_map_eukaryotes,
 #         tables/06_trophic_modes_site_fraction.tsv
 
 ## hard-coded for running line by line (RStudio); with Rscript the script's own folder is used
-default_script_dir <- "C:/repos/tem_classification/metab/analysis"
+default_script_dir <- "C:/repos/trec_biobank/metab/analysis"
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]
 script_dir  <- if (is.na(script_file)) default_script_dir else dirname(normalizePath(sub("^--file=", "", script_file)))
 source(file.path(script_dir, "common.R"))

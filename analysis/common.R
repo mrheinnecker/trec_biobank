@@ -18,7 +18,7 @@ suppressPackageStartupMessages({
 ##             TEM_ANNOT_SHEET, TEM_GOOGLE_KEY, TEM_ANNOT_ROUNDS) > defaults
 ## (the defaults are the hard-coded paths at the top of every script, for running line by line)
 default_sheet_url  <- "https://docs.google.com/spreadsheets/d/1NDyVERdrl7nXJrQRWBbwHjyHCMNEZhj1RQnBKUObwuU/edit?gid=0#gid=0"
-default_google_key <- "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json"
+default_google_key <- "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json"
 
 parse_args <- function(args = commandArgs(trailingOnly = TRUE),
                        default_input = NA_character_, default_outdir = NA_character_) {

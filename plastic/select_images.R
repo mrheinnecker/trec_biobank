@@ -27,7 +27,7 @@ opt <- getopt(spec)
 #   sheet_mode = "google",
 #   sheet_url = "https://docs.google.com/spreadsheets/d/1ePRpa56mmMvCeRTLXmwOywOLy5_I3AFrxJepSUYGR1s/edit?gid=1442254503#gid=1442254503",
 #   sheet_name = "cryo_lm",
-#   google_key = "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json",
+#   google_key = "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json",
 #   outdir = "/scratch/rheinnec/plastic_screen/processed",
 #   dryrun = "FALSE",
 #   dryrun_n = 2L,

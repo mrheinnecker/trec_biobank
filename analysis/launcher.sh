@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ## Launcher for the TEM annotation analysis (local, WSL).
 ## Edit the settings below, then run:
-##   bash /mnt/c/repos/tem_classification/analysis/launcher.sh
+##   bash /mnt/c/repos/trec_biobank/analysis/launcher.sh
 ##
 ## Every run creates a new folder <OUTDIR>/<date>_<time>_round<ROUNDS>/ with plots/ and tables/.
 ## Which organelles are tested / clustered: use_features in analysis/assoc_common.R
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ## ---- settings ----
-REPO=/mnt/c/repos/tem_classification
+REPO=/mnt/c/repos/trec_biobank
 OUTDIR=/mnt/c/projects/trec_biobank/analysis
 
 ## R container (rebuild with: bash $REPO/container/build_r_analysis.sh)

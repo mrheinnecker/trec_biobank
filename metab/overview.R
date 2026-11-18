@@ -3,11 +3,11 @@
 
 library(tidyverse)
 
-trec24 <- read_csv("C:/Users/rheinnec/Downloads/TREC_Plankton_wbrMetaB_wbrTRECAML_wbr40um_wbr2024_dataset_files_export.csv")
+trec24 <- read_csv("C:/projects/trec_biobank/metab/TREC_Plankton_wbrMetaB_wbrTRECAML_wbr40um_wbr2024_dataset_files_export.csv")
 
-trec23 <- read_csv("C:/Users/rheinnec/Downloads/TREC_Plankton_wbrMetaB_wbrTRECAML_wbr40um_dataset_files_export.csv")
+trec23 <- read_csv("C:/projects/trec_biobank/metab/TREC_Plankton_wbrMetaB_wbrTRECAML_wbr40um_dataset_files_export.csv")
 
-vigo <- read_csv("C:/Users/rheinnec/Downloads/TREC_CELLBLOOM_wbrVigo_wbrmetabarcoding_dataset_files_export.csv")
+vigo <- read_csv("C:/projects/trec_biobank/metab/TREC_CELLBLOOM_wbrVigo_wbrmetabarcoding_dataset_files_export.csv")
 
 
 neg_control <- c("SAMEA122159368",
@@ -18,7 +18,7 @@ full_dataset_table <- bind_rows(trec24, trec23, vigo) %>%
   mutate(type=ifelse(Samples %in% neg_control, "control", "environmental")) %>%
   select(-Type, -Format)
 
-write_tsv(full_dataset_table, file="C:/projects/biobank/metab/sampleinfo.tsv")
+write_tsv(full_dataset_table, file="C:/projects/trec_biobank/metab/sampleinfo.tsv")
 
 test %>% filter(Samples %in% neg_control) %>% View()
 
@@ -122,7 +122,7 @@ trec_p <- ggplot(missing_taxonomy %>% filter(percent_missing!=0),
   theme_bw()
 
 png(
-  filename = "C:/Users/rheinnec/Documents/cbb_unit_sem_0726/missing_taxonomy.png",
+  filename = "C:/projects/trec_biobank/metab/analysis/plots/missing_taxonomy.png",
   width = 3,
   height = 3,
   units = "in",
@@ -258,7 +258,7 @@ plot <- input %>%
 
 
 png(
-  filename = "C:/Users/rheinnec/Documents/cbb_unit_sem_0726/probe_signal_heatmap_optimal.png",
+  filename = "C:/projects/trec_biobank/metab/analysis/plots/probe_signal_heatmap_optimal.png",
   width = 1950,
   height = 1600,
   res = 300

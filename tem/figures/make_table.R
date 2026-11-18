@@ -85,7 +85,7 @@ library(googledrive)
 library(cowplot)
 #email = "marco.rheinnecker@embl.de"
 
-json_key <- "/g/schwab/marco/repos/tem_classification/tem/trec-tem-screen-e98a2e03f58b.json"
+json_key <- "/g/schwab/marco/repos/trec_biobank/tem/trec-tem-screen-e98a2e03f58b.json"
 gs4_auth(path=json_key)
 drive_auth(path = json_key)
 trec_tem_googledoc <- "https://docs.google.com/spreadsheets/d/1VnX2JjlOJf7tkjw4DN6FIpiulz-qko1pQk6onMM5RwY/edit?gid=1366996799#gid=1366996799"

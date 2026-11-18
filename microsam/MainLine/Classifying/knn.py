@@ -32,7 +32,7 @@ elif model_name=="SimCLR":
     pkl_name="SimCLR"
 dflist=[]
 for n in range(40,42):
-    df = pd.read_pickle(f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/{pkl_name}.pkl")
+    df = pd.read_pickle(f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/{pkl_name}.pkl")
     df['cellnb'] = n
     #print(df.shape)
     dflist.append(df)
@@ -101,7 +101,7 @@ Sthreshold = np.percentile(size_scaled[df_final['cluster'].notna()], 5)
 print("Size threshold : ",Sthreshold)
 plt.plot([0,1],[Sthreshold,Sthreshold],color='g')
 
-plt.savefig(f'/g/schwab/marco/projects/tem_classification/slurm_outputs/SizeRep.png')
+plt.savefig(f'/g/schwab/marco/projects/trec_biobank/slurm_outputs/SizeRep.png')
 plt.clf()
 print(f"Figure was saved successfully : SizeRep.png")
 
@@ -174,7 +174,7 @@ if evaluation:
         avg_test=[sum([test[j][i] for j in range(n)])/n for i in range(len(test[0]))]
         plt.plot(ks, avg_training, color='k')
         plt.plot(ks, avg_test, color='g')
-        plt.savefig(f'/g/schwab/marco/projects/tem_classification/slurm_outputs/ScoreK.png')
+        plt.savefig(f'/g/schwab/marco/projects/trec_biobank/slurm_outputs/ScoreK.png')
         plt.clf()
         print(f"Figure was saved successfully : ScoreK.png")
     conf_matrix_avg = conf_matrix / conf_matrix.sum(axis=1, keepdims=True)* 100
@@ -182,7 +182,7 @@ if evaluation:
     disp.plot(cmap=plt.cm.Blues, values_format=".0f")
     plt.title(f"Confusion Matrix_{model_name}")
     plt.xticks(rotation=90)
-    plt.savefig(f'/g/schwab/marco/projects/tem_classification/slurm_outputs/ConfMatrix_{model_name}_k{K}.png')
+    plt.savefig(f'/g/schwab/marco/projects/trec_biobank/slurm_outputs/ConfMatrix_{model_name}_k{K}.png')
     plt.clf()
 
 
@@ -226,7 +226,7 @@ plt.plot([x/len(average_distances2) for x in range(len(average_distances2))], so
 threshold = np.percentile(average_distances, 95)
 print("Threshold : ",threshold)
 plt.plot([0,1],[threshold,threshold],color='g')
-plt.savefig(f'/g/schwab/marco/projects/tem_classification/slurm_outputs/ScoreLOF.png')
+plt.savefig(f'/g/schwab/marco/projects/trec_biobank/slurm_outputs/ScoreLOF.png')
 plt.clf()
 print(f"Figure was saved successfully : ScoreLOF.png")
 # Suppose you define your own threshold based on top 5% scores
@@ -279,13 +279,13 @@ if map2d:
     
     
     
-    plt.savefig(f'/g/schwab/marco/projects/tem_classification/slurm_outputs/umapmap.png')
+    plt.savefig(f'/g/schwab/marco/projects/trec_biobank/slurm_outputs/umapmap.png')
     print(f"Figure was saved successfully : umapmap.png")
     final_df=pd.concat([unlabeled2D,labeled2D])
     print(final_df)
     final_df.reset_index()
     
-    final_df.to_pickle(rf"/g/schwab/marco/projects/tem_classification/slurm_outputs/cluster_table_{model_name}_{method}.pkl")
+    final_df.to_pickle(rf"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cluster_table_{model_name}_{method}.pkl")
     '''
     absc=Xu[average_distances2<threshold][:,0]
     ordi=Xu[average_distances2<threshold][:,1]

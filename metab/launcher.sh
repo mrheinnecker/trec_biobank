@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ## -- edit these ------------------------------------------------------------
-RAW_DIR="/mnt/c/projects/biobank/metab"
+RAW_DIR="/mnt/c/projects/trec_biobank/metab/datahub_downloads"
 ENVIRONMENTAL_SAMPLES="8"          # number or "all"
 CONTROL_SAMPLES="all"              # number or "all"
 FW_PRIMER="GTGYCAGCMGCCGCGGTAA"

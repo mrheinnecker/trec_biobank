@@ -145,18 +145,18 @@ def main():
     path = '/g/schwab/Karel/Mobie_project_dinoflagellate/data/VSM20_A1_AM1/images/ome-zarr/VSM20_A1_AM1_'+"0"*(3-len(n))+n+'.ome.zarr'
     dataset = zarr.open_group(path, mode = 'r')
     MODEL_TYPE="vit_b"
-    if not os.path.exists("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/maskstore"):
-        os.mkdir("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/maskstore")
-    if not os.path.exists("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/maskstoreContext"):
-        os.mkdir("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/maskstoreContext")
+    if not os.path.exists("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/maskstore"):
+        os.mkdir("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/maskstore")
+    if not os.path.exists("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/maskstoreContext"):
+        os.mkdir("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/maskstoreContext")
     #img = dataset["s"+str(SCALE)]
-    instances =np.asarray(Image.open("/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/mask_"+MODEL_TYPE+"_merged.png")).copy()
+    instances =np.asarray(Image.open("/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/mask_"+MODEL_TYPE+"_merged.png")).copy()
     images,nbs = masksplit(dataset,instances,SCALE)
     for i,img in enumerate(images):
         img = np.clip(img / 256, 0, 255)
         grayscale_image = Image.fromarray(img.astype(np.uint8))
         # Save the image
-        grayscale_image.save(f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/maskstoreContext/c{n}o{nbs[i]}.png")
+        grayscale_image.save(f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/maskstoreContext/c{n}o{nbs[i]}.png")
         #print("C:\\Users\\TEAM\\Desktop\\Gregoire\\maskstore\\organelle_"+str(nbs[i])+".png")
 
 if __name__ == "__main__":

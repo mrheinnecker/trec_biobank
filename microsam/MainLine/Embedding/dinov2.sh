@@ -31,4 +31,4 @@ export CURL_CA_BUNDLE="$SSL_CERT_FILE"
 
 
 # Run your script
-python /g/schwab/marco/repos/tem_classification/MainLine/Embedding/dinov2.py $SLURM_ARRAY_TASK_ID
+python /g/schwab/marco/repos/trec_biobank/MainLine/Embedding/dinov2.py $SLURM_ARRAY_TASK_ID

@@ -20,4 +20,4 @@ conda activate /g/schwab/marco/conda_microsam
 
 
 # Run your script
-python /g/schwab/marco/repos/tem_classification/MainLine/Segmenting/maskmerge.py $SLURM_ARRAY_TASK_ID
+python /g/schwab/marco/repos/trec_biobank/MainLine/Segmenting/maskmerge.py $SLURM_ARRAY_TASK_ID

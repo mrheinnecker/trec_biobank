@@ -47,7 +47,7 @@ opt <- getopt(spec)
 #   collection_table_url = "https://docs.google.com/spreadsheets/d/1NDyVERdrl7nXJrQRWBbwHjyHCMNEZhj1RQnBKUObwuU/edit?gid=0#gid=0",
 #   source_collection_table_url = "https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=2014112369#gid=2014112369",
 #   source_collection_sheet = "tem_collection_table",
-#   google_key = "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json",
+#   google_key = "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json",
 #   sheet_mode = "google",
 #   annotation_log_dir = "/g/schwab/tem_screen/annotations/log",
 #   annotations_sheet = "main",

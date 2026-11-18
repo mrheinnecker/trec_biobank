@@ -67,7 +67,7 @@ def load_dinov2_model(pkl_name):
 
     if pkl_name!="originalDino":
     
-        checkpoint_path = rf"/g/schwab/marco/projects/tem_classification/slurm_outputs/{pkl_name}.pth"
+        checkpoint_path = rf"/g/schwab/marco/projects/trec_biobank/slurm_outputs/{pkl_name}.pth"
         state_dict = torch.load(checkpoint_path, map_location='cuda')
         
         state_dict = state_dict['model_state_dict'] if 'model_state_dict' in state_dict else state_dict
@@ -150,14 +150,14 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_dinov2_model(pkl_name).to(device) # only works if the model has the same architecture as DINOv2
     #model = load_SimCLR().to(device) #change the corresponding line in lootfolderpandas to use this
-    path = "/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_"+n+"/maskstoreContext"
+    path = "/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_"+n+"/maskstoreContext"
 
 
     df = lootfolderpanda(path, model,device)
-    destination=f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/{pkl_name}.pkl"
+    destination=f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/{pkl_name}.pkl"
     df.to_pickle(destination)
     add_sizes(n,destination)
     add_avg(n,destination)
-    "/g/schwab/marco/projects/tem_classification/maskstore"
+    "/g/schwab/marco/projects/trec_biobank/maskstore"
     #print(len(df))
     print("Feature vector shape:", df.shape)

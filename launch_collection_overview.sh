@@ -10,7 +10,7 @@ set -euo pipefail
 # Edit this file to define a complete collection-table overview run.
 # It can be run directly with bash or submitted with sbatch.
 
-repo_dir="/home/rheinnec/repos/tem_classification"
+repo_dir="/home/rheinnec/repos/trec_biobank"
 outdir="/home/rheinnec/collection_table_overview"
 container="/home/rheinnec/container/tidyverse_latest.sif"
 prefix="collection_table_overview"
@@ -26,7 +26,7 @@ bash "${repo_dir}/overview/run_collection_table_overview.sh" \
 
 ## on the cluster environment
 
-repo_dir="/g/schwab/marco/repos/tem_classification"
+repo_dir="/g/schwab/marco/repos/trec_biobank"
 outdir="/g/schwab/tem_screen/overview"
 container="/g/schwab/marco/container_legacy/tidyverse_latest.sif"
 prefix="collection_table_overview"

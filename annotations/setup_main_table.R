@@ -2,7 +2,7 @@ library(tidyverse)
 library(googlesheets4)
 library(googledrive)
 
-google_key <- "/g/schwab/marco/repos/tem_classification/trec-tem-screen-e98a2e03f58b.json"
+google_key <- "/g/schwab/marco/repos/trec_biobank/trec-tem-screen-e98a2e03f58b.json"
 gs4_auth(path=google_key)
 drive_auth(path=google_key)
 tem_collection_table_url <- "https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit?gid=1643802951#gid=1643802951"

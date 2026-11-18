@@ -19,7 +19,7 @@ masks=[[0 for j in range(tilenb)]for i in range(tilenb)]
 
 for i in range(tilenb):
     for j in range(tilenb):
-        masks[i][j] = np.asarray(Image.open(f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_{i}{j}.png")).copy()
+        masks[i][j] = np.asarray(Image.open(f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_{i}{j}.png")).copy()
 
 # Load an example image from the 'scikit-image' library.
 #image = cells3d()[30, 0]
@@ -48,7 +48,7 @@ for i,img in enumerate(images):
 '''
 if PROCESS:
     tosave = Image.fromarray(onemask.astype(np.uint16))
-    tosave.save(f"/g/schwab/marco/projects/tem_classification/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_merged.png")
+    tosave.save(f"/g/schwab/marco/projects/trec_biobank/slurm_outputs/cell_nb_{n}/mask_{MODEL_TYPE}_merged.png")
 #mask = Image.fromarray(instances.astype(np.uint8))
 # Save the image
 #mask.save("C:\\Users\\TEAM\\Desktop\\Gregoire\\mask.png")

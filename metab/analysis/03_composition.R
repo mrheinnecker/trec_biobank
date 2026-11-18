@@ -11,7 +11,7 @@
 # phylum, fine = class), plus a site x group table of mean shares.
 
 ## hard-coded for running line by line (RStudio); with Rscript the script's own folder is used
-default_script_dir <- "C:/repos/tem_classification/metab/analysis"
+default_script_dir <- "C:/repos/trec_biobank/metab/analysis"
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]
 script_dir  <- if (is.na(script_file)) default_script_dir else dirname(normalizePath(sub("^--file=", "", script_file)))
 source(file.path(script_dir, "common.R"))

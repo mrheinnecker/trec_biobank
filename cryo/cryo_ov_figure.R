@@ -147,7 +147,7 @@ df_hpf <- raw_hpf %>%
 make_cryo_alluvial_figure(df=df_hpf, 
                           response_colors=rc_hpf, 
                           survey_colors=sc_hpf,
-                          "/g/schwab/marco/projects/tem_classification/cryo_hpf_alluvial.png")
+                          "/g/schwab/marco/projects/trec_biobank/cryo_hpf_alluvial.png")
 
 
 
@@ -157,7 +157,7 @@ make_cryo_alluvial_figure(df=df_hpf,
 make_cryo_alluvial_figure(df=df_pf, 
                           response_colors=rc_pf, 
                           survey_colors=sc_pf,
-                          "/g/schwab/marco/projects/tem_classification/cryo_pf_alluvial.png")
+                          "/g/schwab/marco/projects/trec_biobank/cryo_pf_alluvial.png")
 
 
 
@@ -167,7 +167,7 @@ make_cryo_alluvial_figure(df=df_pf,
 make_cryo_alluvial_figure(df=df_wm, 
                           response_colors=rc_wm, 
                           survey_colors=sc_wm,
-                          "/g/schwab/marco/projects/tem_classification/cryo_wm_alluvial.png")
+                          "/g/schwab/marco/projects/trec_biobank/cryo_wm_alluvial.png")
 
 
 
