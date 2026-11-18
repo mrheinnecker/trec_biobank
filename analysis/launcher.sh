@@ -29,7 +29,7 @@ export ROUNDS=1
 ##   09 collection tables of the negative organelle pairs -> Google sheet (TEM_COLLECTION_SHEET_URL)
 ##   10 overview figures (JPEG montages) of the collection tables of 06 (clusters) and 09 (pairs)
 ##   (05 and 09 need 04, 08 needs 07, 10 needs 09 in the same run)
-STEPS="01 02 03 04 05 06 07 08 09 10 11 12"
+STEPS="01 02 03 04 05 06 07 08 09 10 11 12 13"
 
 ## spreadsheet for the collection tables of step 09 (the service account
 ## nextflow-gsheets@trec-tem-screen.iam.gserviceaccount.com needs edit access); empty = only local tsv
@@ -50,6 +50,8 @@ export TEM_SCALE_FACTOR=4
 ## image size (images are reduced further until the widest cell of each cluster fits its column)
 export TEM_TREE_PLOT_SCALE=1.5
 export TEM_TREE_IMAGE_SCALE=0.5
+## step 13: trophic modes per site and size fraction from metab/analysis/06_trophic_modes_map.R
+export TEM_METAB_TROPHIC_TABLE=/mnt/c/projects/trec_biobank/metab/analysis/tables/06_trophic_modes_site_fraction.tsv
 
 ## rerun on an earlier download instead of fetching the main sheet again:
 ## path to <run folder>/tables/annotations_main.tsv; empty = download fresh
