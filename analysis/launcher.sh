@@ -10,7 +10,7 @@ set -euo pipefail
 
 ## ---- settings ----
 REPO=/mnt/c/repos/tem_classification
-OUTDIR=/mnt/c/projects/tem_classification/analysis
+OUTDIR=/mnt/c/projects/trec_biobank/analysis
 
 ## R container (rebuild with: bash $REPO/container/build_r_analysis.sh)
 export R_SIF=/mnt/c/container/r_analysis.sif
@@ -29,7 +29,7 @@ export ROUNDS=1
 ##   09 collection tables of the negative organelle pairs -> Google sheet (TEM_COLLECTION_SHEET_URL)
 ##   10 overview figures (JPEG montages) of the collection tables of 06 (clusters) and 09 (pairs)
 ##   (05 and 09 need 04, 08 needs 07, 10 needs 09 in the same run)
-STEPS="01 02 03 04 05 06 07 08 09 10 11 12 13"
+STEPS="01 02 03 04 05 06 07 08 09 10 11 12 13 14"
 
 ## spreadsheet for the collection tables of step 09 (the service account
 ## nextflow-gsheets@trec-tem-screen.iam.gserviceaccount.com needs edit access); empty = only local tsv
@@ -42,8 +42,8 @@ export TEM_CLUSTER_K=6
 ## size, so the cells are packed side by side true to scale. All are reduced by TEM_SCALE_FACTOR
 ## (full resolution exceeds the JPEG limit; 4 -> 28 nm/px, ~22k px per figure; 2 -> ~40k px).
 ## The reduced images are cached in TEM_THUMB_DIR, so the PNGs are read only once.
-export TEM_PNG_DIR=/mnt/c/projects/tem_classification/pngs
-export TEM_THUMB_DIR=/mnt/c/projects/tem_classification/png_thumbs
+export TEM_PNG_DIR=/mnt/c/projects/trec_biobank/pngs
+export TEM_THUMB_DIR=/mnt/c/projects/trec_biobank/png_thumbs
 export TEM_SCALE_FACTOR=4
 ## combined tree figure of the clusters: size of the plot part (tree, metadata, organelles, labels;
 ## also sets the width per cell and with it the whole figure width) and the upper limit of the cell

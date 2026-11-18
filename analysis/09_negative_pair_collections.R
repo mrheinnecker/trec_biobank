@@ -14,7 +14,7 @@
 ## hard-coded for running line by line (RStudio); when run with Rscript,
 ## --input / --outdir (or the env vars TEM_ANNOT_INPUT / TEM_ANNOT_OUTDIR) take precedence
 default_input      <- NA_character_   # NA = read the main sheet from Google Sheets; or a tsv snapshot
-default_outdir     <- "C:/projects/tem_classification"   # -> plots/ and tables/ in here
+default_outdir     <- "C:/projects/trec_biobank"   # -> plots/ and tables/ in here
 default_script_dir <- "C:/repos/tem_classification/analysis"
 
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]

@@ -2,7 +2,7 @@
 
 library(tidyverse)
 
-ov_dir <- "C:/projects/tem_classification/ov"
+ov_dir <- "C:/projects/trec_biobank/ov"
 
 ## set TRUE to export the sheets again (needs Google auth), otherwise the exported TSVs are used
 refresh_from_sheets <- TRUE

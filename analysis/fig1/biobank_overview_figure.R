@@ -5,8 +5,8 @@ library(circlize)
 library(ggalluvial)
 
 ## inputs written by biobank_overview.R
-ov_dir <- "C:/projects/tem_classification/ov"
-plot_dir <- "C:/projects/tem_classification/plots"
+ov_dir <- "C:/projects/trec_biobank/ov"
+plot_dir <- "C:/projects/trec_biobank/plots"
 dir.create(plot_dir, showWarnings=FALSE, recursive=TRUE)
 
 ## a PDF that is open in a viewer cannot be overwritten on Windows: warn instead of stopping

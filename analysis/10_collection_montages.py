@@ -58,8 +58,8 @@ FONT_PATHS = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--outdir", required=True, help="run folder with tables/collections/")
-    p.add_argument("--png_dir", default=os.environ.get("TEM_PNG_DIR", "/mnt/c/projects/tem_classification/pngs"))
-    p.add_argument("--thumb_dir", default=os.environ.get("TEM_THUMB_DIR", "/mnt/c/projects/tem_classification/png_thumbs"))
+    p.add_argument("--png_dir", default=os.environ.get("TEM_PNG_DIR", "/mnt/c/projects/trec_biobank/pngs"))
+    p.add_argument("--thumb_dir", default=os.environ.get("TEM_THUMB_DIR", "/mnt/c/projects/trec_biobank/png_thumbs"))
     p.add_argument("--scale_factor", type=int, default=int(os.environ.get("TEM_SCALE_FACTOR", 4)),
                    help="PNG pixels per montage pixel (same for all cells -> true scale)")
     p.add_argument("--quality", type=int, default=85, help="JPEG quality of the montages")

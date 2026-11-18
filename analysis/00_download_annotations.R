@@ -5,7 +5,7 @@
 ## All rounds are kept in the snapshot; the steps select the rounds with --rounds.
 
 ## ---- paths ----
-default_outdir     <- "C:/projects/tem_classification"
+default_outdir     <- "C:/projects/trec_biobank"
 default_script_dir <- "C:/repos/tem_classification/analysis"
 
 script_file <- grep("^--file=", commandArgs(FALSE), value = TRUE)[1]

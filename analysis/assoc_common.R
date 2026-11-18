@@ -5,20 +5,21 @@
 ## organelles to test / cluster on: remove / comment out what should not be used
 ## (features that are hard to judge by the study design stay out -> fewer tests, fewer false positives)
 use_features <- c(
-  #"cell_cover", ## noisy column... amlot of different things count as cell cover 
+  #"cell_cover", ## noisy column... a lot of different things count as cell cover 
   #"nucleus",    ## we know that every cell has it
   #"nucleolus",  ## unlikely to cut
-# "pusule", ## unlikely to cut
+  # "pusule", ## unlikely to cut
   #"flagell_app", ## unlikely to cut
   #"symbiosis",  ## extremely rare so probably not suited for this analysis but actually interesting to correlate with organelles
   #"eyespot", ## unlikely to cut
-  #"fibrous_body", "put_division", "SDV", 
+  #"put_division", 
+  # "SDV", 
   #"ER", "mito", "golgi", ## every cell has it
   ## to be discussed: 
-  "pyrenoid", ### ASK: less likely to cut i guess? 
   # "lysosome", ## a bit difficult to annotate... noidsy ... per person bias
+  # "fibrous_body", some cells have a lot i remeber so you would always cut it but some also not?
+  "pyrenoid",
   "tricho", 
-  "core_vesic",  
   "chloropl", 
   "plastoglob", 
   "retic_net", 
@@ -28,8 +29,9 @@ use_features <- c(
   "starch", 
   "cryst_rich_RN", 
   "rhabdo", 
-  "lipid_drop", 
-  "SER_whorls" ## 
+  "core_vesic",  ## not sure?
+  "lipid_drop", ## difficult to annotae, so noisy but could tell us function about energy storage
+  "SER_whorls" ## not sure?
   )
 include_undescribed <- TRUE    # also use the undescribed_<n> structures
 min_feature_cells   <- 10      # features present in fewer cells are dropped before all analyses (04-09)
