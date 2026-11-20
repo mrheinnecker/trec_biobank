@@ -1,5 +1,5 @@
 # R container for the TEM annotation scripts:
-#   analysis/ (00-12, run_analysis.sh) and annotations/ (make_split_collection_tables.R,
+#   analysis/ (00-14, run_analysis.sh, fig1/launcher.sh) and annotations/ (make_split_collection_tables.R,
 #   migrate_annotation_rounds.R).
 # rocker/tidyverse ships R 4.4.2 + tidyverse (incl. googlesheets4, googledrive, httr) and installs
 # CRAN packages as binaries from a dated Posit package manager snapshot.
@@ -12,7 +12,7 @@ From: rocker/tidyverse:4.4.2
 
 %labels
     Author marco
-    Tool R 4.4.2 + tidyverse, googlesheets4, getopt, cowplot, patchwork, lme4, cluster, ComplexHeatmap, sf, rnaturalearth; python3 + Pillow
+    Tool R 4.4.2 + tidyverse, googlesheets4, getopt, cowplot, patchwork, lme4, cluster, ComplexHeatmap, sf, rnaturalearth, circlize, ggalluvial, ggnewscale; python3 + Pillow
     Description TEM annotation distribution and analysis
 
 %environment
@@ -29,12 +29,12 @@ From: rocker/tidyverse:4.4.2
 
     install2.r --error --skipinstalled \
         getopt cowplot patchwork lme4 cluster BiocManager \
-        sf rnaturalearth rnaturalearthdata
+        sf rnaturalearth rnaturalearthdata circlize ggalluvial ggnewscale
 
     Rscript -e 'BiocManager::install("ComplexHeatmap", update = FALSE, ask = FALSE)'
 
     ## fail the build if anything is missing
-    Rscript -e 'pkgs <- c("tidyverse", "googlesheets4", "googledrive", "httr", "getopt", "cowplot", "patchwork", "lme4", "cluster", "ComplexHeatmap", "sf", "rnaturalearth", "rnaturalearthdata"); for (p in pkgs) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("all packages load\n")'
+    Rscript -e 'pkgs <- c("tidyverse", "googlesheets4", "googledrive", "httr", "getopt", "cowplot", "patchwork", "lme4", "cluster", "ComplexHeatmap", "sf", "rnaturalearth", "rnaturalearthdata", "circlize", "ggalluvial", "ggnewscale"); for (p in pkgs) suppressPackageStartupMessages(library(p, character.only = TRUE)); cat("all packages load\n")'
 
 %test
     Rscript -e 'library(lme4); library(ComplexHeatmap); library(googlesheets4); library(sf); library(rnaturalearth)'
