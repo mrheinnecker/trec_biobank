@@ -35,8 +35,8 @@ STEPS="01 02 03 04 05 06 07 08 09 10 11 12 13 14"
 ## nextflow-gsheets@trec-tem-screen.iam.gserviceaccount.com needs edit access); empty = only local tsv
 export TEM_COLLECTION_SHEET_URL="https://docs.google.com/spreadsheets/d/18b2AVslU7sOQOTRRIwxGHKPtrh00ezT-byOrQpiVo8Y/edit?gid=0#gid=0"
 
-## step 06: number of clusters; empty = the k with the best mean silhouette width
-export TEM_CLUSTER_K=6
+## step 06: number of clusters; empty = automatic (k_method in 06: resampling stability by default)
+export TEM_CLUSTER_K=5
 
 ## step 10: one PNG per cell in <TEM_PNG_DIR>/<site>/<source_name>.png; all PNGs have the same pixel
 ## size, so the cells are packed side by side true to scale. All are reduced by TEM_SCALE_FACTOR

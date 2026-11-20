@@ -13,7 +13,7 @@ The repo is sub-structured according to the various modalities and downstream an
 | `plastic/` | Confocal images of freeze-substituted resin blocks (Leica `.lif`) |
 | `exm/` | Expansion microscopy (Nikon `.nd2`, one file per channel) |
 | `metab/` | Metabarcoding (16S/18S amplicons): nf-core/ampliseq plus SILVA/PR2 taxonomy |
-| `overview/` | Biobank overview (samples, sampling events, imaging per modality) and collection-table overview |
+| `analysis/fig1/` | Biobank overview (samples, sampling events, imaging per modality) and collection-table overview |
 | `annotations/` | TEM annotation table setup |
 | `analysis/` | TEM annotation analysis (annotator QC, site features, feature associations, organelle clustering) |
 | `microsam/` | micro-SAM segmentation, DINOv2 embedding and clustering of TEM images (separate pipeline, see `microsam/README.txt`) |
@@ -87,10 +87,10 @@ All datasets go to `imatrec/central_data_processing/<modality>` on the EMBL S3 (
 |                     # prepare_input.py, patch_omezarr_metadata.py, make_collection_table.R
 +-- metab/            # ampliseq launch scripts, samplesheet builder, datahub download, AMPLISEQ_SETUP.md
 |   +-- taxonomy/     # wfTAXONOMY.nf + R scripts (SILVA/PR2 classification)
-+-- overview/         # biobank_overview.R, biobank_overview_figure.R, collection_table_overview.R
 +-- annotations/      # launcher.sh, make_split_collection_tables.R, annotation_rounds_common.R,
 |                     # migrate_annotation_rounds.R, setup_main_table.R, annotation_ov.R, bio_anno.R
-+-- analysis/         # annotation analysis: common.R, 01-05 scripts, run_analysis.sh
++-- analysis/         # annotation analysis: common.R, 00-14 scripts, run_analysis.sh
+|   +-- fig1/         # biobank_overview.R, biobank_overview_figure.R, collection_table_overview.R
 +-- microsam/         # segmentation / embedding / clustering pipeline
 ```
 
@@ -208,7 +208,7 @@ sbatch metab/taxonomy/run_taxonomy_slurm.sh
 
 ## Overview and annotations
 
-**Biobank overview (`overview/biobank_overview.R`, `overview/biobank_overview_figure.R`).** Run locally in R. Reads the sampling events, HPF, cryo PF/WM, MetaB and chemical-fixation sheets and the collection tables of all modalities, maps every sample and imaged dataset to its sampling event, and writes event maps and coverage tables (`*_event_map.tsv`, `imaging_map.tsv`, `event_coverage.tsv`). The figure script draws the overview figures: circle, radial, HPF flow and the chain figure (samples -> blocks/PF -> imaging, coloured by source). Set `refresh_from_sheets` to re-export the sheets (needs Google auth).
+**Biobank overview (`analysis/fig1/biobank_overview.R`, `analysis/fig1/biobank_overview_figure.R`).** Run locally in R (RStudio) or with `bash analysis/fig1/launcher.sh` (R container; settings at the top: steps `data` / `figure`, refresh, Google key, data snapshot, run note). The data script reads the sampling events, HPF, cryo PF/WM, MetaB and chemical-fixation sheets and the collection tables of all modalities, maps every sample and imaged dataset to its sampling event, and writes event maps and coverage tables (`*_event_map.tsv`, `imaging_map.tsv`, `event_coverage.tsv`) into a new snapshot folder `C:/projects/trec_biobank/fig1/data/<timestamp>/`; parts whose `refresh_*` flag is FALSE are copied from the previous snapshot (needs Google auth otherwise). Samples are matched to sampling events by site, date and time of day (no shared ID); manual corrections go into `C:/projects/trec_biobank/fig1/event_overrides.tsv` (`table | id | event_id | note`: sample barcode or image_id -> full Event ID, or `none`), applied after the automatic matching in every run; every guessed or missing link that is not corrected yet is listed with its candidate events in `<snapshot>/mapping_review.tsv`. `analysis/fig1/export_mapping_sheet.R` (launcher step `sheet`) writes all links between the layers of the figure, one tab per link (event -> raw sample, raw sample -> derived sample, -> overview scan, -> images, plus a summary), each row marked clear / guessed / dropped and in_figure, to the mapping Google sheet (`FIG1_MAPPING_SHEET`) and to `<snapshot>/mapping_sheet/`. The figure script draws the overview figures (circle, HPF flow, radial and the chain figure: samples -> blocks/PF -> imaging) from the newest snapshot (or `data_snapshot`) into a new folder `C:/projects/trec_biobank/fig1/runs/<timestamp>[_<run_note>]/`, together with a copy of the script and `run_info.txt` (data snapshot, git commit), so runs can be compared. All colours and legend labels are in the `COLOURS AND LEGEND LABELS` section at the top (one table per palette: key, color, label; label NA = not in the legend).
 
 **Collection-table overview (`launch_collection_overview.sh`).** Summarises all collection tables (rows, dataset metadata, counts per modality) in the tidyverse container.
 

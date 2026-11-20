@@ -5,7 +5,7 @@
 ## organelles to test / cluster on: remove / comment out what should not be used
 ## (features that are hard to judge by the study design stay out -> fewer tests, fewer false positives)
 use_features <- c(
-  #"cell_cover", ## noisy column... a lot of different things count as cell cover 
+  "cell_cover", ## noisy column... a lot of different things count as cell cover 
   #"nucleus",    ## we know that every cell has it
   #"nucleolus",  ## unlikely to cut
   # "pusule", ## unlikely to cut
@@ -30,8 +30,8 @@ use_features <- c(
   "cryst_rich_RN", 
   "rhabdo", 
   "core_vesic",  ## not sure?
-  "lipid_drop", ## difficult to annotae, so noisy but could tell us function about energy storage
-  "SER_whorls" ## not sure?
+  "lipid_drop" ## difficult to annotae, so noisy but could tell us function about energy storage
+  #"SER_whorls" ## not sure?
   )
 include_undescribed <- TRUE    # also use the undescribed_<n> structures
 min_feature_cells   <- 10      # features present in fewer cells are dropped before all analyses (04-09)
