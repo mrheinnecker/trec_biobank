@@ -1,13 +1,58 @@
-
+## Biobank overview, step 2: figures (A circle, B HPF flow, C radial flow, D radial chain).
+## Input: a data snapshot of biobank_overview.R (<fig1_root>/data/<timestamp>/, default the newest).
+## Every run writes into a new folder <fig1_root>/runs/<YYYYmmdd_HHMMSS>/ with the plots, a copy of
+## this script (to compare the settings of two runs) and run_info.txt (data snapshot, git commit).
 
 library(tidyverse)
 library(circlize)
 library(ggalluvial)
 
-## inputs written by biobank_overview.R
-ov_dir <- "C:/projects/trec_biobank/ov"
-plot_dir <- "C:/projects/trec_biobank/plots"
-dir.create(plot_dir, showWarnings=FALSE, recursive=TRUE)
+## ---- run folder ----
+fig1_root <- if (.Platform$OS.type == "windows") "C:/projects/trec_biobank/fig1" else "/mnt/c/projects/trec_biobank/fig1"
+
+## data snapshot to use (folder name in <fig1_root>/data); NA = the newest
+## (env FIG1_DATA_SNAPSHOT, set by launcher.sh, overrides this)
+data_snapshot <- NA
+if (Sys.getenv("FIG1_DATA_SNAPSHOT") != "") data_snapshot <- Sys.getenv("FIG1_DATA_SNAPSHOT")
+ov_dir <- if (is.na(data_snapshot)) {
+  sort(list.dirs(file.path(fig1_root, "data"), recursive=FALSE), decreasing=TRUE)[1]
+} else {
+  file.path(fig1_root, "data", data_snapshot)
+}
+if (is.na(ov_dir) || !file.exists(file.path(ov_dir, "event_coverage.tsv"))) {
+  stop("No data snapshot with event_coverage.tsv found (run biobank_overview.R first): ", ov_dir)
+}
+
+## optional note appended to the run folder name, e.g. "new_colours" -> 20261118_170000_new_colours
+## (env FIG1_RUN_NOTE overrides this)
+run_note <- ""
+if (Sys.getenv("FIG1_RUN_NOTE") != "") run_note <- Sys.getenv("FIG1_RUN_NOTE")
+plot_dir <- file.path(fig1_root, "runs", paste0(format(Sys.time(), "%Y%m%d_%H%M%S"), if (nzchar(run_note)) paste0("_", run_note)))
+dir.create(plot_dir, recursive=TRUE)
+message("Data: ", ov_dir, "\nOutput: ", plot_dir)
+
+## run info + a copy of this script (Rscript, source() or the open file in RStudio)
+script_file <- tryCatch(
+  normalizePath(sys.frame(1)$ofile),
+  error=function(e) {
+    f <- sub("^--file=", "", grep("^--file=", commandArgs(FALSE), value=TRUE)[1])
+    if (is.na(f)) NA_character_ else normalizePath(f)
+  }
+)
+if (is.na(script_file) && requireNamespace("rstudioapi", quietly=TRUE) && rstudioapi::isAvailable()) {
+  script_file <- rstudioapi::getSourceEditorContext()$path
+}
+git_commit <- tryCatch(
+  system2("git", c("-C", dirname(script_file), "rev-parse", "--short", "HEAD"), stdout=TRUE, stderr=FALSE),
+  error=function(e) NA_character_, warning=function(w) NA_character_
+)
+writeLines(c(
+  paste("time:", format(Sys.time())),
+  paste("data snapshot:", ov_dir),
+  paste("script:", script_file),
+  paste("git commit:", paste(git_commit, collapse=""))
+), file.path(plot_dir, "run_info.txt"))
+if (!is.na(script_file) && file.exists(script_file)) file.copy(script_file, plot_dir)
 
 ## a PDF that is open in a viewer cannot be overwritten on Windows: warn instead of stopping
 ggsave_pdf <- function(filename, plot, ...) {
@@ -17,19 +62,125 @@ ggsave_pdf <- function(filename, plot, ...) {
   )
 }
 
-## site order and colors as in cryo/cryo_ov_figure.R
-site_colors <- c(
-  Roscoff="#332288",
-  Tallinn="#4477AA",
-  Kristineberg="#66CCEE",
-  Bilbao="#228833",
-  Porto="#AA9933",
-  Barcelona="#EE7733",
-  Naples="#CC6677",
-  Athens="#AA3377"
+
+## =================================================================================================
+## ---- COLOURS AND LEGEND LABELS: edit here -------------------------------------------------------
+## =================================================================================================
+## One row per element: key = name in the data (do not change), color = fill colour,
+## label = text in the legend (NA = left out of the legend). The legend lists the entries in row
+## order. Two entries with the same colour share one legend entry.
+
+## sites: site ring and site-coloured flows of all figures; the row order is the site order
+site_palette <- tribble(
+  ~key,           ~color,    ~label,
+  "Roscoff",      "#332288", NA,
+  "Tallinn",      "#4477AA", NA,
+  "Kristineberg", "#66CCEE", NA,
+  "Bilbao",       "#228833", NA,
+  "Porto",        "#AA9933", NA,
+  "Barcelona",    "#EE7733", NA,
+  "Naples",       "#CC6677", NA,
+  "Athens",       "#AA3377", NA
 )
 
-coverage <- read_tsv(file.path(ov_dir, "event_coverage.tsv"), show_col_types=FALSE)
+## D (chain figure): blocks of rings 2-5 (the flows outside the site ring take the colour of the
+## block they come from, lightened by outer_flow_lighten further down)
+chain_palette <- tribble(
+  ~key,       ~color,    ~label,
+  ## ring 2: samples
+  "HPF",      "#6EC6CA", "cryo-storage",
+  "PF",       "#6EC6CA", "cryo-storage",
+  "MetaB",    "#5AAE61", "ENA",
+  "Chem fix", "#4477AA", "4°C-storage",
+  ## ring 3: resin
+  "Epon",     "#FDAE6B", "RT-storage",
+  "Lowicryl", "#FDAE6B", "RT-storage",
+  ## ring 4: imaging of the sample
+  "HiTT",     "#35978F", "BioImageArchive",
+  "resin LM", "#35978F", "BioImageArchive",
+  "cryo LM",  "#35978F", "BioImageArchive",
+  ## ring 5: cells
+  "TEM",      "#35978F", "BioImageArchive",
+  "SEM",      "#35978F", "BioImageArchive",
+  "ExM",      "#35978F", "BioImageArchive"
+)
+## legend of D: title, position ("right", "bottom", ..., "none" = no legend), extra figure width (in)
+## for a legend on the right, and whether the sites are listed too (their label column above)
+chain_legend_title <- NULL
+chain_legend_position <- "right"
+chain_legend_width <- 1.6
+chain_legend_sites <- FALSE
+
+## E (radial chain split by site): blocks of rings 2-5, same keys as chain_palette;
+## ring = legend block the entry is listed in (titles in radial_chain_ring_titles)
+radial_chain_palette <- tribble(
+  ~ring, ~key,       ~color,    ~label,
+  2,     "HPF",      "#2166AC", "HPF",
+  2,     "PF",       "#4393C3", "plunge frozen (PF + WM)",
+  2,     "MetaB",    "#5AAE61", "metabarcoding",
+  2,     "Chem fix", "#9970AB", "chemically fixed",
+  3,     "Epon",     "#B2182B", "Epon",
+  3,     "Lowicryl", "#EF8A62", "Lowicryl",
+  3,     "V4V5 rRNA sequencing", "#1B7837", "V4V5 rRNA sequencing",
+  4,     "HiTT",     "#D94801", "HiTT (X-ray)",
+  4,     "resin LM", "#FD8D3C", "resin LM",
+  4,     "cryo LM",  "#FDAE6B", "cryo LM",
+  5,     "TEM",      "#7F2704", "TEM",
+  5,     "SEM",      "#8C6D31", "SEM",
+  5,     "ExM",      "#35978F", "ExM"
+)
+## legend of E: one block per ring, from inside to outside, with these titles
+radial_chain_ring_titles <- c(
+  `2`="raw sample",
+  `3`="resin blocks",
+  `4`="overview scan/dataset",
+  `5`="images"
+)
+## legend position, and whether the sites are listed too (as a first block with this title)
+radial_chain_legend_position <- "right"
+radial_chain_legend_sites <- FALSE
+radial_chain_sites_title <- "site"
+
+## C (radial flow): sample ring and image ring
+sample_type_palette <- tribble(
+  ~key,       ~color,    ~label,
+  "HPF",      "#2166AC", "HPF",
+  "cryo PF",  "#4393C3", "cryo PF",
+  "cryo WM",  "#92C5DE", "cryo WM",
+  "MetaB",    "#5AAE61", "MetaB",
+  "Chem fix", "#9970AB", "Chem fix"
+)
+imaging_palette <- tribble(
+  ~key,          ~color,    ~label,
+  "TEM",         "#7F2704", "TEM",
+  "HiTT",        "#D94801", "HiTT",
+  "resin LM",    "#FD8D3C", "resin LM",
+  "cryo LM PF",  "#FDAE6B", "cryo LM PF",
+  "cryo LM WM",  "#FDD0A2", "cryo LM WM",
+  "cryo LM HPF", "#FEE6CE", "cryo LM HPF",
+  "SEM",         "#8C6D31", "SEM",
+  "ExM",         "#35978F", "ExM"
+)
+event_only_color <- "grey75"
+event_only_label <- "no sample record"
+
+## A (circle): colour ramps for 0 / 1 / 10 / 100 / 1000 samples or images per event
+sample_ramp <- c("grey94", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B")
+image_ramp <- c("grey94", "#FDD0A2", "#FD8D3C", "#D94801", "#7F2704")
+## =================================================================================================
+
+palette_colors <- function(pal) deframe(select(pal, key, color))
+## legend entries (colour -> label) of the rows with a label, in row order, one per colour
+palette_legend <- function(pal) {
+  pal %>%
+    filter(!is.na(label)) %>%
+    distinct(color, .keep_all=TRUE) %>%
+    with(setNames(label, color))
+}
+
+site_colors <- palette_colors(site_palette)
+
+coverage <-read_tsv(file.path(ov_dir, "event_coverage.tsv"), show_col_types=FALSE)
 hpf_events <- read_tsv(file.path(ov_dir, "hpf_event_map.tsv"), col_types=cols(.default=col_character()))
 imaging_map <- read_tsv(file.path(ov_dir, "imaging_map.tsv"), col_types=cols(.default=col_character()))
 
@@ -81,8 +232,8 @@ image_matrix <- ring_matrix(image_rings)
 
 ## log10(n + 1): 0 = none, 0.3 = 1, 1 = 9, 2 = 99, 3 = 999
 count_breaks <- c(0, log10(2), 1, 2, 3)
-sample_col_fun <- colorRamp2(count_breaks, c("grey94", "#C6DBEF", "#6BAED6", "#2171B5", "#08306B"))
-image_col_fun <- colorRamp2(count_breaks, c("grey94", "#FDD0A2", "#FD8D3C", "#D94801", "#7F2704"))
+sample_col_fun <- colorRamp2(count_breaks, sample_ramp)
+image_col_fun <- colorRamp2(count_breaks, image_ramp)
 
 campaign_labels <- circle_data %>%
   group_by(site) %>%
@@ -297,25 +448,10 @@ ggsave_pdf(file.path(plot_dir, "biobank_overview_hpf_flow.pdf"), flow_plot, widt
 ## of a sample block has no outgoing flow). Images linked to an event only (no sample record, e.g. SEM)
 ## go through a grey "no sample record" block in the sample ring, sized in sample units.
 
-sample_type_colors <- c(
-  HPF="#2166AC",
-  `cryo PF`="#4393C3",
-  `cryo WM`="#92C5DE",
-  MetaB="#5AAE61",
-  `Chem fix`="#9970AB"
-)
-imaging_colors <- c(
-  TEM="#7F2704",
-  HiTT="#D94801",
-  `resin LM`="#FD8D3C",
-  `cryo LM PF`="#FDAE6B",
-  `cryo LM WM`="#FDD0A2",
-  `cryo LM HPF`="#FEE6CE",
-  SEM="#8C6D31",
-  ExM="#35978F"
-)
+## colours: sample_type_palette / imaging_palette in the colour section at the top
+sample_type_colors <- palette_colors(sample_type_palette)
+imaging_colors <- palette_colors(imaging_palette)
 event_only <- "event only"
-event_only_color <- "grey75"
 
 sample_maps <- c(
   HPF="hpf_event_map.tsv",
@@ -541,6 +677,14 @@ sample_labels <- ring2 %>%
     label=size
   )
 
+## legend: samples, the event-only block, images (labels from the palettes at the top)
+radial_legend <- c(
+  palette_legend(sample_type_palette),
+  if (!is.na(event_only_label)) setNames(event_only_label, event_only_color),
+  palette_legend(imaging_palette)
+)
+radial_legend <- radial_legend[!duplicated(names(radial_legend))]
+
 radial_plot <- ggplot() +
   geom_polygon(data=flow_polygons, aes(x, y, group=id, fill=fill), alpha=0.5, color=NA) +
   geom_polygon(data=block_polygons, aes(x, y, group=id, fill=fill), color="white", linewidth=0.15) +
@@ -557,8 +701,8 @@ radial_plot <- ggplot() +
   ) +
   scale_fill_identity(
     guide="legend",
-    breaks=c(sample_type_colors, event_only_color, imaging_colors),
-    labels=c(names(sample_type_colors), "no sample record", names(imaging_colors)),
+    breaks=names(radial_legend),
+    labels=unname(radial_legend),
     name=NULL
   ) +
   coord_equal(xlim=c(-1.05, 1.05), ylim=c(-1.05, 1.05)) +
@@ -645,20 +789,8 @@ resin_of <- function(x) {
 pass_prefix <- "pass:"
 is_pass <- function(x) str_starts(x, fixed(pass_prefix))
 
-chain_block_colors <- c(
-  HPF="#2166AC",
-  PF="#4393C3",
-  MetaB="#5AAE61",
-  `Chem fix`="#9970AB",
-  Epon="#B2182B",
-  Lowicryl="#EF8A62",
-  HiTT="#D94801",
-  `resin LM`="#FD8D3C",
-  `cryo LM`="#FDAE6B",
-  TEM="#7F2704",
-  SEM="#8C6D31",
-  ExM="#35978F"
-)
+## colours: chain_palette in the colour section at the top
+chain_block_colors <- palette_colors(chain_palette)
 ring2_levels <- c("HPF", "PF", "MetaB", "Chem fix")
 
 merge_sample_type <- function(x) {
@@ -777,6 +909,9 @@ segments <- list(
 ) %>%
   imap(~mutate(.x, seg=as.integer(.y), w_from=as.numeric(w_from), w_to=as.numeric(w_to))) %>%
   map(~filter(.x, w_from > 0, w_to > 0))
+
+## per-site segments, kept for E (radial chain split by site)
+segments_site <- segments
 
 if (!color_flows_by_site) {
   segments[-1] <- map(segments[-1], function(seg) {
@@ -1204,6 +1339,9 @@ chain_labels <- chain_blocks %>%
     color=if_else(wide & is_dark(fill), "white", "black")
   )
 
+chain_legend <- c(if (chain_legend_sites) palette_legend(site_palette), palette_legend(chain_palette))
+chain_legend <- chain_legend[!duplicated(names(chain_legend))]
+
 chain_plot <- ggplot() +
   geom_polygon(data=chain_flow_polygons, aes(x, y, group=id, fill=fill), alpha=0.5, color=NA) +
   geom_polygon(data=chain_block_polygons, aes(x, y, group=id, fill=fill), color="white", linewidth=0.2) +
@@ -1220,7 +1358,14 @@ chain_plot <- ggplot() +
       format(nrow(chain_images), big.mark=","), " images"
     )
   ) +
-  scale_fill_identity() +
+  ## legend from chain_palette (+ site_palette): the fill values are colours, the legend lists the
+  ## palette colours with their labels (lightened flow colours are not listed)
+  scale_fill_identity(
+    guide=if (chain_legend_position == "none" || length(chain_legend) == 0) "none" else "legend",
+    breaks=names(chain_legend),
+    labels=unname(chain_legend),
+    name=chain_legend_title
+  ) +
   scale_color_identity() +
   ## room for the labels next to narrow outer blocks
   coord_equal(
@@ -1228,7 +1373,324 @@ chain_plot <- ggplot() +
     ylim=c(-1, 1) * (chain_radii[[5]][2] + 0.18)
   ) +
   theme_void() +
-  theme(plot.background=element_rect(fill="white", color=NA))
+  theme(
+    plot.background=element_rect(fill="white", color=NA),
+    legend.position=chain_legend_position,
+    legend.key.size=unit(3.5, "mm"),
+    legend.text=element_text(size=7),
+    legend.title=element_text(size=8)
+  )
 
-ggsave(file.path(plot_dir, "biobank_overview_chain.png"), chain_plot, width=7, height=7, dpi=400, bg="white")
-ggsave_pdf(file.path(plot_dir, "biobank_overview_chain.pdf"), chain_plot, width=7, height=7)
+## a legend on the right / left needs extra width, so that the circle keeps its size
+chain_width <- 7 + if (chain_legend_position %in% c("right", "left") && length(chain_legend) > 0) chain_legend_width else 0
+ggsave(file.path(plot_dir, "biobank_overview_chain.png"), chain_plot, width=chain_width, height=7, dpi=400, bg="white")
+ggsave_pdf(file.path(plot_dir, "biobank_overview_chain.pdf"), chain_plot, width=chain_width, height=7)
+
+
+## ---- E: radial chain split by site: the rings of D, every ring split by site as in C -------------
+## ring 1: sites (events), ring 2: sample types (samples), ring 3: resin blocks (samples),
+## ring 4: imaging of the sample (images), ring 5: cells (images); same paths as D (segments_site).
+## Every ring is split by site; the blocks of one site sit together, the site group is centred over its
+## sources in the ring below (then pushed apart where groups overlap). Inside a site group the blocks are
+## ordered by the position of their sources (ring 2: e_ring2_order). Paths that skip a ring run through
+## an invisible pass-through gap of that ring. Rings 2 / 3 share one scale (degrees per sample),
+## rings 4 / 5 one scale (degrees per image); the larger ring of each pair fills the circle.
+## Flows are coloured by site.
+
+## ---- settings E ----
+e_site_gap <- 3       # gap between site groups (degrees)
+e_node_gap <- 0.6     # gap between the blocks of one site (degrees)
+## ring radii: site ring from e_inner_radius, all rings separated by the same gap, so that the outer
+## edge of ring 5 is at e_outer_radius
+e_inner_radius <- 0.15
+e_outer_radius <- 0.71
+e_ring_widths <- c(0.06, 0.05, 0.05, 0.05, 0.05)   # rings 1-5
+e_ring_gap <- (e_outer_radius - e_inner_radius - sum(e_ring_widths)) / (length(e_ring_widths) - 1)
+e_radii <- map(seq_along(e_ring_widths), function(k) {
+  r0 <- e_inner_radius + sum(head(e_ring_widths, k - 1)) + (k - 1) * e_ring_gap
+  c(r0, r0 + e_ring_widths[k])
+})
+## ring 3: one derived sample per MetaB sample (block name = key in radial_chain_palette)
+e_metab_sequencing <- TRUE
+e_metab_sequencing_block <- "V4V5 rRNA sequencing"
+e_ring2_order <- ring2_order_fixed   # order of the sample types inside a site (NULL: by source position)
+e_flow_alpha <- 0.5
+e_label_min <- c(`2`=4, `3`=4, `4`=4)  # rings 2-4: count inside blocks at least this wide (degrees)
+e_outer_label_min <- 2.5               # ring 5: label (name + count) next to blocks at least this wide
+e_site_label_min <- 30                 # ring 1: two-line label inside sites at least this wide, else inside the ring (towards the centre)
+e_legend_position <- radial_chain_legend_position
+e_width <- 7 + if (e_legend_position %in% c("right", "left")) chain_legend_width else 0
+## colours and legend: radial_chain_palette / radial_chain_ring_titles in the colour section at the top
+e_block_colors <- palette_colors(radial_chain_palette)
+## legend blocks: list of (title, entries with color + label), sites first if wanted, then ring 2-5
+e_legend_blocks <- c(
+  if (radial_chain_legend_sites) list(list(title=radial_chain_sites_title, pal=site_palette)),
+  map(names(radial_chain_ring_titles), function(r) {
+    list(title=radial_chain_ring_titles[[r]], pal=filter(radial_chain_palette, ring == as.numeric(r)))
+  })
+) %>%
+  map(function(b) {
+    b$pal <- b$pal %>% filter(!is.na(label)) %>% distinct(color, .keep_all=TRUE)
+    b
+  }) %>%
+  keep(~nrow(.x$pal) > 0)
+
+## ---- layout E ----
+e_segments <- map(segments_site, ~mutate(filter(.x, site %in% site_levels), site=as.character(site)))
+
+## derived samples in ring 3 that are not in D: one sequencing library per MetaB sample
+if (e_metab_sequencing) {
+  e_segments[[2]] <- bind_rows(
+    e_segments[[2]],
+    e_segments[[1]] %>%
+      filter(to == "MetaB") %>%
+      transmute(site, from="MetaB", to=e_metab_sequencing_block, w_from=w_to, w_to=w_to, seg=2L)
+  )
+}
+
+## ring sizes from the flows ending there
+e_sizes <- map(e_segments, ~summarise(group_by(.x, site, block=to), size=sum(w_to), .groups="drop"))
+e_gaps <- function(sizes) n_distinct(sizes$site) * e_site_gap + (nrow(sizes) - n_distinct(sizes$site)) * e_node_gap
+e_deg <- function(a, b) min((360 - e_gaps(a)) / sum(a$size), (360 - e_gaps(b)) / sum(b$size))
+e_deg_sample <- e_deg(e_sizes[[1]], e_sizes[[2]])
+e_deg_image <- e_deg(e_sizes[[3]], e_sizes[[4]])
+
+## centres pushed apart (circularly) until neighbours are at least (w_i + w_j) / 2 + gap apart
+e_push_apart <- function(center, width, gap, iterations=5000) {
+  o <- order(center %% 360)
+  cen <- (center %% 360)[o]
+  w <- width[o]
+  n <- length(cen)
+  if (n >= 2) {
+    for (it in seq_len(iterations)) {
+      moved <- FALSE
+      for (i in seq_len(n)) {
+        j <- if (i == n) 1 else i + 1
+        need <- (w[i] + w[j]) / 2 + gap
+        have <- (cen[j] - cen[i]) %% 360
+        if (have < need - 1e-4) {
+          push <- (need - have) / 2
+          cen[i] <- cen[i] - push
+          cen[j] <- cen[j] + push
+          moved <- TRUE
+        }
+      }
+      if (!moved) break
+    }
+  }
+  out <- numeric(n)
+  out[o] <- cen
+  out
+}
+
+## blocks of a ring (site, block, size, center = centre of its sources) -> start / end
+e_place_ring <- function(nodes, deg, fixed_order=NULL) {
+  nodes <- nodes %>%
+    mutate(width=size * deg) %>%
+    group_by(site) %>%
+    mutate(
+      site_center=circular_center(center, size),
+      rank=if (!is.null(fixed_order)) coalesce(match(block, fixed_order), 99L) + rank(ang_diff(site_center, center)) / 100
+           else rank(ang_diff(site_center, center), ties.method="first")
+    ) %>%
+    arrange(site, rank) %>%
+    ungroup()
+  groups <- nodes %>%
+    group_by(site) %>%
+    summarise(center=first(site_center), width=sum(width) + (n() - 1) * e_node_gap, .groups="drop") %>%
+    mutate(center=e_push_apart(center, width, e_site_gap), g_start=center - width / 2)
+  nodes %>%
+    left_join(groups %>% select(site, g_start), by="site") %>%
+    group_by(site) %>%
+    mutate(
+      start=g_start + lag(cumsum(width + e_node_gap), default=0),
+      end=start + width
+    ) %>%
+    ungroup() %>%
+    select(site, block, size, start, end)
+}
+
+## pieces of the blocks of one side for their flows, ordered by the angle of `other` (relative to the
+## block centre); fill = the flows fill the block (site ring: events vs samples)
+e_allocate <- function(seg, ring, node_col, prefix, fill=FALSE) {
+  width_col <- if (prefix == "a") "w_from" else "w_to"
+  seg %>%
+    left_join(ring %>% select(site, block, n_start=start, n_end=end, n_size=size), by=c("site", setNames("block", node_col))) %>%
+    mutate(rel=ang_diff((n_start + n_end) / 2, other)) %>%
+    arrange(site, .data[[node_col]], rel, to) %>%
+    group_by(across(all_of(c("site", node_col)))) %>%
+    group_modify(function(f, key) {
+      size <- if (fill) sum(f[[width_col]]) else f$n_size[1]
+      pieces <- split_node(f$n_start[1], f$n_end[1], size, f[[width_col]])
+      f[[paste0(prefix, "1")]] <- pieces$from
+      f[[paste0(prefix, "2")]] <- pieces$to
+      f
+    }) %>%
+    ungroup() %>%
+    select(-n_start, -n_end, -n_size, -rel)
+}
+
+e_rings <- list(ring1 %>% transmute(site=as.character(site), block=as.character(site), size, start, end))
+for (k in 1:4) {
+  seg <- e_segments[[k]]
+  src <- e_rings[[k]]
+  ## pass 1: source side in a provisional order -> centres of the target blocks -> target ring
+  provisional <- seg %>%
+    left_join(src %>% transmute(site, from=block, other=(start + end) / 2), by=c("site", "from")) %>%
+    e_allocate(src, "from", "a", fill=(k == 1))
+  nodes <- provisional %>%
+    mutate(mid=(a1 + a2) / 2) %>%
+    group_by(site, block=to) %>%
+    summarise(size=sum(w_to), center=circular_center(mid, w_to), .groups="drop")
+  e_rings[[k + 1]] <- e_place_ring(nodes, if (k <= 2) e_deg_sample else e_deg_image, if (k == 1) e_ring2_order)
+  ## pass 2: source side ordered by the target blocks, target side by the source pieces
+  e_segments[[k]] <- seg %>%
+    left_join(e_rings[[k + 1]] %>% transmute(site, to=block, other=(start + end) / 2), by=c("site", "to")) %>%
+    e_allocate(src, "from", "a", fill=(k == 1)) %>%
+    mutate(other=(a1 + a2) / 2) %>%
+    e_allocate(e_rings[[k + 1]], "to", "b") %>%
+    select(-other)
+}
+
+## ---- drawing E ----
+e_all <- bind_rows(e_segments)
+
+## flows: from a visible block through pass-through gaps to the next visible block, one smooth curve
+e_flow_polygons <- e_all %>%
+  filter(!is_pass(from) | seg == 1) %>%
+  mutate(flow_id=row_number()) %>%
+  pmap_dfr(function(...) {
+    flow <- list(...)
+    r_from <- e_radii[[flow$seg]][2]
+    left <- c(flow$a1, flow$b1)
+    right <- c(flow$a2, flow$b2)
+    current <- flow
+    while (is_pass(current$to)) {
+      nxt <- e_all %>% filter(seg == current$seg + 1, from == current$to, site == current$site)
+      if (nrow(nxt) == 0) break
+      nxt <- as.list(nxt[1, ])
+      left <- c(left, nxt$a1, nxt$b1)
+      right <- c(right, nxt$a2, nxt$b2)
+      current <- nxt
+    }
+    r_to <- e_radii[[current$seg + 1]][1]
+    ## first and last position only; the shorter way around the circle
+    left <- left[c(1, length(left))]
+    right <- right[c(1, length(right))]
+    shift <- (left[1] + right[1]) / 2 + ang_diff((left[1] + right[1]) / 2, (left[2] + right[2]) / 2) - (left[2] + right[2]) / 2
+    left[2] <- left[2] + shift
+    right[2] <- right[2] + shift
+    t <- seq(0, 1, length.out=40)
+    s <- 3 * t^2 - 2 * t^3
+    r <- r_from + (r_to - r_from) * t
+    bind_rows(
+      to_xy(left[1] + (left[2] - left[1]) * s, r),
+      arc_xy(left[2], right[2], r_to),
+      to_xy(rev(right[1] + (right[2] - right[1]) * s), rev(r)),
+      arc_xy(right[1], left[1], r_from)
+    ) %>%
+      mutate(id=paste("e", flow$flow_id), fill=site_colors[flow$site])
+  })
+
+e_blocks <- imap_dfr(e_rings, function(blocks, k) {
+  blocks %>%
+    filter(!is_pass(block)) %>%
+    mutate(
+      ring=k,
+      fill=if (k == 1) site_colors[block] else e_block_colors[block],
+      r_inner=e_radii[[k]][1],
+      r_outer=e_radii[[k]][2]
+    )
+}) %>%
+  mutate(id=paste("eb", row_number()))
+
+e_block_polygons <- e_blocks %>%
+  rowwise() %>%
+  reframe(id, fill, block_poly(start, end, c(r_inner, r_outer)))
+
+e_labels <- bind_rows(
+  ## sites: name + events inside wide blocks (along the circle), "name (events)" next to narrow ones
+  e_blocks %>%
+    filter(ring == 1) %>%
+    mutate(
+      wide=end - start >= e_site_label_min,
+      label=if_else(wide, paste0(block, "\n", size, " events"), paste0(block, " (", size, ")")),
+      ## narrow sites: label on the inner side of the ring, pointing to the centre
+      r_text=if_else(wide, (r_inner + r_outer) / 2, r_inner - 0.012), radial=!wide, inward=!wide
+    ) %>%
+    select(-wide),
+  ## rings 2-4: count inside wide blocks
+  e_blocks %>%
+    filter(ring %in% 2:4, end - start >= e_label_min[as.character(ring)]) %>%
+    mutate(label=prettyNum(round(size), big.mark=","), r_text=(r_inner + r_outer) / 2, radial=FALSE),
+  ## ring 5: name and count next to the block
+  e_blocks %>%
+    filter(ring == 5, end - start >= e_outer_label_min) %>%
+    mutate(label=paste0(block, " (", prettyNum(round(size), big.mark=","), ")"), r_text=r_outer + 0.012, radial=TRUE)
+) %>%
+  mutate(
+    mid=((start + end) / 2) %% 360,
+    x=to_xy(mid, r_text)$x,
+    y=to_xy(mid, r_text)$y,
+    angle=if_else(radial, radial_angle(mid), tangential_angle(mid)),
+    inward=coalesce(inward, FALSE),
+    hjust=case_when(!radial ~ 0.5, inward ~ if_else(mid < 180, 1, 0), TRUE ~ if_else(mid < 180, 0, 1)),
+    color=if_else(!radial & is_dark(fill), "white", "black"),
+    size=if_else(ring == 1, 1.8, 1.6),
+    fontface="plain"
+  )
+
+e_plot <- ggplot() +
+  geom_polygon(data=e_flow_polygons, aes(x, y, group=id, fill=fill), alpha=e_flow_alpha, color=NA) +
+  geom_polygon(data=e_block_polygons, aes(x, y, group=id, fill=fill), color="white", linewidth=0.15) +
+  geom_text(
+    data=e_labels,
+    aes(x, y, label=label, angle=angle, hjust=hjust, color=color, size=size, fontface=fontface),
+    lineheight=0.85
+  ) +
+  annotate(
+    "text", 0, 0, size=2.2, lineheight=0.95,
+    label=paste0(
+      sum(ring1$size), " events\n",
+      format(sum(e_sizes[[1]]$size), big.mark=","), " samples\n",
+      format(nrow(chain_images), big.mark=","), " images"
+    )
+  ) +
+  scale_fill_identity() +
+  scale_color_identity() +
+  scale_size_identity() +
+  coord_equal(
+    xlim=c(-1, 1) * (e_radii[[5]][2] + 0.18),
+    ylim=c(-1, 1) * (e_radii[[5]][2] + 0.18)
+  ) +
+  theme_void() +
+  theme(
+    plot.background=element_rect(fill="white", color=NA),
+    legend.position=e_legend_position,
+    legend.key.size=unit(3.5, "mm"),
+    legend.text=element_text(size=7),
+    legend.title=element_text(size=8, face="bold"),
+    legend.box="vertical",
+    legend.box.just="left",
+    legend.justification="left",
+    legend.spacing.y=unit(3, "mm")
+  )
+
+## legend: one fill scale per block (ggnewscale), drawn by invisible tiles, in block order
+if (e_legend_position != "none") {
+  for (i in seq_along(e_legend_blocks)) {
+    b <- e_legend_blocks[[i]]
+    d <- b$pal %>% mutate(label=factor(label, levels=label))
+    e_plot <- e_plot +
+      ggnewscale::new_scale_fill() +
+      geom_tile(data=d, aes(x=0, y=0, fill=label), width=0, height=0, linewidth=0) +
+      scale_fill_manual(
+        values=setNames(d$color, d$label),
+        name=b$title,
+        guide=guide_legend(order=i, override.aes=list(linewidth=0))
+      )
+  }
+}
+
+ggsave(file.path(plot_dir, "biobank_overview_radial_chain.png"), e_plot, width=e_width, height=7, dpi=400, bg="white")
+ggsave_pdf(file.path(plot_dir, "biobank_overview_radial_chain.pdf"), e_plot, width=e_width, height=7)

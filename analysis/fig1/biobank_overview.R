@@ -1,13 +1,43 @@
-
+## Biobank overview, step 1: data. Exports the sheets / collection tables and maps every sample and
+## imaged dataset to its sampling event. Every run writes a new snapshot folder
+##   <fig1_root>/data/<YYYYmmdd_HHMMSS>/
+## which biobank_overview_figure.R reads (by default the newest one).
+## Parts that are not refreshed (refresh_* = FALSE below) are copied from the previous snapshot.
 
 library(tidyverse)
 
-ov_dir <- "C:/projects/trec_biobank/ov"
+## ---- run folder ----
+fig1_root <- if (.Platform$OS.type == "windows") "C:/projects/trec_biobank/fig1" else "/mnt/c/projects/trec_biobank/fig1"
+data_root <- file.path(fig1_root, "data")
+
+## newest earlier snapshot (source for the parts that are not refreshed)
+prev_dir <- sort(list.dirs(data_root, recursive=FALSE), decreasing=TRUE)[1]
+ov_dir <- file.path(data_root, format(Sys.time(), "%Y%m%d_%H%M%S"))
+dir.create(ov_dir, recursive=TRUE)
+message("Data snapshot: ", ov_dir)
+
+## copy files / folders of the previous snapshot into this one
+reuse_previous <- function(paths) {
+  if (is.na(prev_dir)) stop("Nothing to reuse: no earlier snapshot in ", data_root, "; set the refresh_* flags to TRUE")
+  message("reused from ", basename(prev_dir), ": ", paste(paths, collapse=", "))
+  for (p in paths) file.copy(file.path(prev_dir, p), ov_dir, recursive=TRUE)
+}
+
+## env overrides (set by launcher.sh): FIG1_REFRESH=TRUE/FALSE sets all three refresh_* flags below,
+## FIG1_GOOGLE_KEY = service-account key for Google Sheets (otherwise interactive login)
+env_flag <- function(default) {
+  v <- Sys.getenv("FIG1_REFRESH", "")
+  if (v == "") default else as.logical(v)
+}
+google_key <- Sys.getenv("FIG1_GOOGLE_KEY", "")
+if (google_key != "") googlesheets4::gs4_auth(path=google_key)
 
 ## set TRUE to export the sheets again (needs Google auth), otherwise the exported TSVs are used
-refresh_from_sheets <- TRUE
+refresh_from_sheets <- env_flag(TRUE)
 
-if (refresh_from_sheets) {
+if (!refresh_from_sheets) {
+  reuse_previous(c("sampling_events.tsv", "hpf.tsv", "cryo_pf.tsv", "cryo_wm.tsv", "metab.tsv", "chemfix.tsv"))
+} else {
   sampling_events <- googlesheets4::read_sheet("https://docs.google.com/spreadsheets/d/1jcpyMkSR4npSxST3D5cFzkAIi9UPmwbPvzAdr2ws55U/edit?gid=193823038#gid=193823038", sheet="Event", col_types = "c", skip=1)
 
   
@@ -40,7 +70,7 @@ if (refresh_from_sheets) {
 
 ## ---- imaging: MoBIE collection tables written by the workflows ---------------------------------
 ## one tab per workflow in the collection table sheet; saved as <ov_dir>/collection_tables/<tab>.tsv
-refresh_collection_tables <- TRUE
+refresh_collection_tables <- env_flag(TRUE)
 
 collection_table_sheet <- "https://docs.google.com/spreadsheets/d/15WNNnse7OvlfiJwFOFYbQA4zIp-5nKc0icRZYfJS--o/edit"
 collection_table_tabs <- c(
@@ -69,15 +99,17 @@ if (refresh_collection_tables) {
     write_tsv(tab_data, file=file.path(collection_table_dir, paste0(tab, ".tsv")))
     message(tab, ": ", nrow(tab_data), " rows")
   })
+} else {
+  reuse_previous("collection_tables")
 }
 
-collection_tables <- list.files(collection_table_dir, pattern="\\.tsv$", full.names=TRUE) %>%
+collection_tables <-list.files(collection_table_dir, pattern="\\.tsv$", full.names=TRUE) %>%
   set_names(str_remove(basename(.), "\\.tsv$")) %>%
   map(~read_tsv(.x, col_types=cols(.default=col_character())))
 
 
 ## ---- EXM annotation sheet: all tabs, saved as <ov_dir>/exm_annotations/<tab>.tsv ------------------
-refresh_exm_annotations <- TRUE
+refresh_exm_annotations <- env_flag(TRUE)
 
 exm_annotation_sheet <- "https://docs.google.com/spreadsheets/d/1PZzLraZx53w_zKwpISj_r7riUibX6iGg9Z2Li_Gc3rw/edit"
 exm_annotation_dir <- file.path(ov_dir, "exm_annotations")
@@ -92,9 +124,11 @@ if (refresh_exm_annotations) {
     write_tsv(tab_data, file=file.path(exm_annotation_dir, file_name))
     message(tab, ": ", nrow(tab_data), " rows")
   })
+} else {
+  reuse_previous("exm_annotations")
 }
 
-sampling_events <- read_tsv(file.path(ov_dir, "sampling_events.tsv"), col_types=cols(.default=col_character()))
+sampling_events <-read_tsv(file.path(ov_dir, "sampling_events.tsv"), col_types=cols(.default=col_character()))
 hpf <- read_tsv(file.path(ov_dir, "hpf.tsv"), col_types=cols(.default=col_character()))
 cryo_pf <- read_tsv(file.path(ov_dir, "cryo_pf.tsv"), col_types=cols(.default=col_character()))
 cryo_wm <- read_tsv(file.path(ov_dir, "cryo_wm.tsv"), col_types=cols(.default=col_character()))
