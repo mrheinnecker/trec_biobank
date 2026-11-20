@@ -77,6 +77,7 @@ site_palette <- tribble(
   "Tallinn",      "#4477AA", NA,
   "Kristineberg", "#66CCEE", NA,
   "Bilbao",       "#228833", NA,
+  "Vigo",         "#44AA99", NA,
   "Porto",        "#AA9933", NA,
   "Barcelona",    "#EE7733", NA,
   "Naples",       "#CC6677", NA,
@@ -116,12 +117,14 @@ chain_legend_sites <- FALSE
 radial_chain_palette <- tribble(
   ~ring, ~key,       ~color,    ~label,
   2,     "HPF",      "#2166AC", "HPF",
-  2,     "PF",       "#4393C3", "plunge frozen (PF + WM)",
+  2,     "PF",       "#4393C3", "plunge frozen (PF + WM)",   # only used with e_split_pf <- FALSE
+  2,     "cryo PF",  "#4393C3", "plunge frozen (PF)",
+  2,     "cryo WM",  "#92C5DE", "waffle method (WM)",
   2,     "MetaB",    "#5AAE61", "metabarcoding",
   2,     "Chem fix", "#9970AB", "chemically fixed",
   3,     "Epon",     "#B2182B", "Epon",
   3,     "Lowicryl", "#EF8A62", "Lowicryl",
-  3,     "V4V5 rRNA sequencing", "#1B7837", "V4V5 rRNA sequencing",
+  4,     "V4V5 rRNA sequencing", "#1B7837", "V4V5 rRNA sequencing",   # ring = e_metab_sequencing_ring
   4,     "HiTT",     "#D94801", "HiTT (X-ray)",
   4,     "resin LM", "#FD8D3C", "resin LM",
   4,     "cryo LM",  "#FDAE6B", "cryo LM",
@@ -825,7 +828,16 @@ chain_samples <- bind_rows(
   count(site, sample_type, wt=size, name="size")
 
 ## resin per HPF sample: block name in the HPF sheet, else the block / image name of its images
+## resin blocks not in the HPF sheet, linked to the event only (Vigo log; written by biobank_overview.R)
+blocks_extra_file <- file.path(ov_dir, "resin_blocks_extra.tsv")
+blocks_extra <- if (file.exists(blocks_extra_file)) {
+  read_tsv(blocks_extra_file, col_types=cols(.default=col_character())) %>% filter(!is.na(event_id))
+} else {
+  tibble(site=character(), event_id=character(), resin=character(), sample_key=character())
+}
+
 key_resin <- bind_rows(
+  blocks_extra %>% transmute(sample_key, resin),
   hpf_events %>%
     filter(!is.na(block_name), block_name != "discarded") %>%
     transmute(sample_key=barcode, resin=resin_of(block_name)),
@@ -845,7 +857,8 @@ embedded <- bind_rows(
     transmute(site, sample_key=barcode),
   chain_images %>%
     filter(sample_type == "HPF", imaging %in% c("TEM", "HiTT", "resin LM")) %>%
-    distinct(site, sample_key)
+    distinct(site, sample_key),
+  blocks_extra %>% filter(site %in% site_levels) %>% transmute(site, sample_key)
 ) %>%
   distinct(site, sample_key) %>%
   left_join(key_resin, by="sample_key") %>%
@@ -1411,9 +1424,15 @@ e_radii <- map(seq_along(e_ring_widths), function(k) {
   c(r0, r0 + e_ring_widths[k])
 })
 ## ring 3: one derived sample per MetaB sample (block name = key in radial_chain_palette)
+## one derived sample per MetaB sample (block name = key in radial_chain_palette), in ring 3 or 4
+## (ring 4: the flow passes ring 3 in an invisible gap)
 e_metab_sequencing <- TRUE
 e_metab_sequencing_block <- "V4V5 rRNA sequencing"
-e_ring2_order <- ring2_order_fixed   # order of the sample types inside a site (NULL: by source position)
+e_metab_sequencing_ring <- 4
+## ring 2: plunge frozen split into cryo PF and cryo WM (FALSE: one PF block as in D)
+e_split_pf <- TRUE
+## order of the sample types inside a site (NULL: by source position)
+e_ring2_order <- if (e_split_pf) c("MetaB", "HPF", "cryo PF", "cryo WM", "Chem fix") else ring2_order_fixed
 e_flow_alpha <- 0.5
 e_label_min <- c(`2`=4, `3`=4, `4`=4)  # rings 2-4: count inside blocks at least this wide (degrees)
 e_outer_label_min <- 2.5               # ring 5: label (name + count) next to blocks at least this wide
@@ -1422,6 +1441,9 @@ e_legend_position <- radial_chain_legend_position
 e_width <- 7 + if (e_legend_position %in% c("right", "left")) chain_legend_width else 0
 ## colours and legend: radial_chain_palette / radial_chain_ring_titles in the colour section at the top
 e_block_colors <- palette_colors(radial_chain_palette)
+radial_chain_palette <- radial_chain_palette %>%
+  mutate(ring=if_else(key == e_metab_sequencing_block, e_metab_sequencing_ring, ring)) %>%
+  filter(!(key == "PF" & e_split_pf), !(key %in% c("cryo PF", "cryo WM") & !e_split_pf))
 ## legend blocks: list of (title, entries with color + label), sites first if wanted, then ring 2-5
 e_legend_blocks <- c(
   if (radial_chain_legend_sites) list(list(title=radial_chain_sites_title, pal=site_palette)),
@@ -1438,14 +1460,37 @@ e_legend_blocks <- c(
 ## ---- layout E ----
 e_segments <- map(segments_site, ~mutate(filter(.x, site %in% site_levels), site=as.character(site)))
 
-## derived samples in ring 3 that are not in D: one sequencing library per MetaB sample
-if (e_metab_sequencing) {
+## plunge frozen split into cryo PF and cryo WM: samples per type (ring 2) and their cryo LM images
+## (through the pass-through of ring 3 to cryo LM in ring 4), from the unmerged sample layer
+if (e_split_pf) {
+  pf_types <- c(`cryo PF`="cryo PF", `cryo WM`="cryo WM")
+  pf_samples <- samples_per_type %>%
+    filter(sample_type %in% pf_types, site %in% site_levels) %>%
+    transmute(site=as.character(site), from=site, to=sample_type, w_from=as.numeric(size), w_to=as.numeric(size), seg=1L)
+  pf_images <- imap(pf_types, ~images_of("cryo LM") %>% filter(sample_layer == .x, site %in% site_levels))
+  e_segments[[1]] <- bind_rows(filter(e_segments[[1]], to != "PF"), pf_samples)
   e_segments[[2]] <- bind_rows(
-    e_segments[[2]],
-    e_segments[[1]] %>%
-      filter(to == "MetaB") %>%
-      transmute(site, from="MetaB", to=e_metab_sequencing_block, w_from=w_to, w_to=w_to, seg=2L)
-  )
+    filter(e_segments[[2]], from != "PF"),
+    imap_dfr(pf_images, ~per_site(.x, .y, paste(pass_prefix, .y), n_keys, n_keys))
+  ) %>% mutate(seg=2L)
+  e_segments[[3]] <- bind_rows(
+    filter(e_segments[[3]], from != paste(pass_prefix, "PF")),
+    imap_dfr(pf_images, ~per_site(.x, paste(pass_prefix, .y), "cryo LM", n_keys, n_img))
+  ) %>% mutate(seg=3L)
+  e_segments[1:3] <- map(e_segments[1:3], ~mutate(filter(.x, w_from > 0, w_to > 0), site=as.character(site), w_from=as.numeric(w_from), w_to=as.numeric(w_to)))
+}
+
+## derived samples that are not in D: one sequencing library per MetaB sample, in ring 3, or in ring 4
+## through a pass-through of ring 3
+if (e_metab_sequencing) {
+  metab_n <- e_segments[[1]] %>% filter(to == "MetaB") %>% select(site, n=w_to)
+  if (e_metab_sequencing_ring == 3) {
+    e_segments[[2]] <- bind_rows(e_segments[[2]], transmute(metab_n, site, from="MetaB", to=e_metab_sequencing_block, w_from=n, w_to=n, seg=2L))
+  } else {
+    seq_pass <- paste(pass_prefix, "MetaB sequencing")
+    e_segments[[2]] <- bind_rows(e_segments[[2]], transmute(metab_n, site, from="MetaB", to=seq_pass, w_from=n, w_to=n, seg=2L))
+    e_segments[[3]] <- bind_rows(e_segments[[3]], transmute(metab_n, site, from=seq_pass, to=e_metab_sequencing_block, w_from=n, w_to=n, seg=3L))
+  }
 }
 
 ## ring sizes from the flows ending there

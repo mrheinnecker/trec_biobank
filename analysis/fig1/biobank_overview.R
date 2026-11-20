@@ -128,6 +128,25 @@ if (refresh_exm_annotations) {
   reuse_previous("exm_annotations")
 }
 
+## ---- Vigo / CellBloom log: all tabs, saved as <ov_dir>/vigo_log/<tab>.tsv ---------------------------
+## events, HPF, chem fixed and MetaB samples and resin blocks of the Vigo campaign (July 2025), all with
+## explicit event IDs (no date matching needed)
+vigo_log_sheet <- "https://docs.google.com/spreadsheets/d/10wo3RmqNkg61SI4_197OoHOPkpFMiSUL67-Xmj11Txg/edit"
+vigo_log_tabs <- c("environmental_events", "hpf", "resin_blocks", "cf", "metab")
+vigo_log_dir <- file.path(ov_dir, "vigo_log")
+refresh_vigo_log <- env_flag(TRUE)
+
+if (!refresh_vigo_log && !is.na(prev_dir) && dir.exists(file.path(prev_dir, "vigo_log"))) {
+  reuse_previous("vigo_log")
+} else {
+  dir.create(vigo_log_dir, showWarnings=FALSE, recursive=TRUE)
+  walk(vigo_log_tabs, function(tab) {
+    tab_data <- googlesheets4::read_sheet(vigo_log_sheet, sheet=tab, col_types="c")
+    write_tsv(tab_data, file=file.path(vigo_log_dir, paste0(tab, ".tsv")))
+    message("Vigo log ", tab, ": ", nrow(tab_data), " rows")
+  })
+}
+
 sampling_events <-read_tsv(file.path(ov_dir, "sampling_events.tsv"), col_types=cols(.default=col_character()))
 hpf <- read_tsv(file.path(ov_dir, "hpf.tsv"), col_types=cols(.default=col_character()))
 cryo_pf <- read_tsv(file.path(ov_dir, "cryo_pf.tsv"), col_types=cols(.default=col_character()))
@@ -160,6 +179,61 @@ events <- sampling_events %>%
     longitude=as.numeric(Longitude)
   )
 
+## ---- Vigo events (Vigo log, environmental_events tab) ----
+## event ID typos in the Vigo log, mapped to the event that is meant (fix them in the log, then remove
+## them here)
+vigo_event_aliases <- c(
+  ## environmental_events says 07-04, the hpf / cf / metab tabs and the MetaB sheet say 07-11
+  `Baiona_2025-07-04_12:18`="Baiona_2025-07-11_12:18",
+  ## metab tab: start_date of that row is 07-04, the event is Vigo_central_2025-07-04_12:21
+  `Vigo_central_2025-07-08_12:21`="Vigo_central_2025-07-04_12:21"
+)
+vigo_alias <- function(x) coalesce(unname(vigo_event_aliases[x]), x)
+read_vigo <- function(tab) {
+  read_tsv(file.path(vigo_log_dir, paste0(tab, ".tsv")), col_types=cols(.default=col_character())) %>%
+    filter(if_any(1, ~!is.na(.x) & .x != "NA"))
+}
+
+## one event per (corrected) event ID; date and time from the ID, site "Vigo" for all its locations
+vigo_events <- read_vigo("environmental_events") %>%
+  mutate(event_id=vigo_alias(environmental_event_id)) %>%
+  distinct(event_id, .keep_all=TRUE) %>%
+  transmute(
+    event_id,
+    event_site_id=site_name,
+    site="Vigo",
+    date=ymd(str_match(event_id, "_(\\d{4}-\\d{2}-\\d{2})_")[, 2]),
+    event_time=str_match(event_id, "_(\\d{2}:\\d{2})$")[, 2],
+    event_hour=as.numeric(str_sub(event_time, 1, 2)) + as.numeric(str_sub(event_time, 4, 5)) / 60,
+    latitude=as.numeric(str_trim(str_split_i(sampling_location, ",", 1))),
+    longitude=as.numeric(str_trim(str_split_i(sampling_location, ",", 2)))
+  )
+message("Vigo events: ", nrow(vigo_events))
+events <- bind_rows(events, vigo_events)
+
+## samples of the Vigo log (with event_id) -> the columns of map_to_events; match_quality "event_id"
+vigo_link <- function(samples) {
+  samples %>%
+    left_join(
+      events %>% select(event_id, event_site_id, event_time, latitude, longitude, ev_date=date, event_hour),
+      by="event_id"
+    ) %>%
+    mutate(
+      unknown=!is.na(event_id) & is.na(event_site_id),
+      date=ev_date,
+      date_raw=format(ev_date, "%Y%m%d"),
+      time_of_day=if_else(event_hour < 12, "AM", "PM"),
+      n_events=1L,
+      candidate_events=NA_character_,
+      candidate_event_ids=if_else(unknown, event_id, NA_character_),
+      event_id=if_else(unknown, NA_character_, event_id),
+      match_quality=if_else(is.na(event_id), "no_event", "event_id")
+    ) %>%
+    { if (any(.$unknown)) warning("Vigo log: event IDs not in environmental_events: ",
+                                  paste(unique(.$candidate_event_ids[.$unknown]), collapse=", ")); . } %>%
+    select(-ev_date, -event_hour, -unknown)
+}
+
 target_hour <- c(AM=9, MID=12, PM=15)
 
 in_half_day <- function(hour, time_of_day) {
@@ -187,6 +261,7 @@ map_to_events <- function(samples, events) {
       n_untimed=sum(is.na(event_hour)),
       time_distance=abs(event_hour - target_hour[time_of_day]),
       candidate_events=paste0(event_site_id, " (", coalesce(str_sub(event_time, 1, 5), "no time"), ")", collapse="; "),
+      candidate_event_ids=paste(event_id, collapse="; "),
       match_quality=case_when(
         n_events == 1 ~ "date",
         is.na(time_of_day) ~ "no_sample_time",
@@ -209,7 +284,7 @@ map_to_events <- function(samples, events) {
     ungroup() %>%
     mutate(across(c(event_id, event_site_id, event_time), ~if_else(match_quality == "no_sample_time", NA, .x))) %>%
     mutate(across(c(latitude, longitude), ~if_else(match_quality == "no_sample_time", NA_real_, .x))) %>%
-    select(site, date, time_of_day, event_id, event_site_id, event_time, latitude, longitude, n_events, candidate_events, match_quality)
+    select(site, date, time_of_day, event_id, event_site_id, event_time, latitude, longitude, n_events, candidate_events, candidate_event_ids, match_quality)
 
   samples %>%
     left_join(slot_event, by=c("site", "date", "time_of_day")) %>%
@@ -225,6 +300,70 @@ report_mapping <- function(mapped, label) {
     count(site, date_raw, time_of_day, event_time, event_site_id, candidate_events, match_quality) %>%
     print(n=Inf)
   invisible(mapped)
+}
+
+## ---- manual event overrides ----
+## <fig1_root>/event_overrides.tsv (outside the snapshots, used by every run; a copy goes into the
+## snapshot). One row per sample or image whose event is set by hand, applied after the automatic
+## matching (match_quality / link = "manual"):
+##   table     HPF, cryo PF, cryo WM, MetaB, Chem fixation (id = sample barcode) or image (id = image_id)
+##   id        barcode / image_id as in the *_event_map.tsv / imaging_map.tsv
+##   event_id  full Event ID of the Event tab (candidate_event_ids in mapping_review.tsv), or "none" to
+##             take the sample / image out (no event)
+##   note      free text
+## Lines starting with # are ignored. Cases to check are listed in <snapshot>/mapping_review.tsv.
+override_file <- file.path(fig1_root, "event_overrides.tsv")
+override_tables <- c("HPF", "cryo PF", "cryo WM", "MetaB", "Chem fixation", "image")
+if (!file.exists(override_file)) {
+  writeLines(c(
+    "table\tid\tevent_id\tnote",
+    "# example (remove the #): MetaB\t123456789\tevent_2023-03-27T07:30:00Z_TREC_001-02-00-000_water_plankton\tmorning per lab notebook"
+  ), override_file)
+  message("Created an empty override table: ", override_file)
+}
+event_overrides <- read_tsv(override_file, col_types=cols(.default=col_character()), comment="#") %>%
+  filter(!is.na(id)) %>%
+  mutate(across(everything(), str_trim))
+file.copy(override_file, ov_dir)
+local({
+  bad_table <- setdiff(event_overrides$table, override_tables)
+  if (length(bad_table) > 0) stop("event_overrides.tsv: unknown table(s): ", paste(bad_table, collapse=", "),
+                                  " (allowed: ", paste(override_tables, collapse=", "), ")")
+  bad_event <- setdiff(event_overrides$event_id, c(events$event_id, "none"))
+  if (length(bad_event) > 0) stop("event_overrides.tsv: event_id not in the Event tab: ", paste(bad_event, collapse=", "))
+  dup <- event_overrides %>% count(table, id) %>% filter(n > 1)
+  if (nrow(dup) > 0) stop("event_overrides.tsv: duplicated rows: ", paste(dup$table, dup$id, collapse=", "))
+})
+message(nrow(event_overrides), " manual event overrides")
+
+## overrides of one table applied to a mapped table (id column = barcode / image_id)
+apply_overrides <- function(mapped, table_name, id_col="barcode", quality_col="match_quality") {
+  ov <- event_overrides %>% filter(table == table_name) %>% select(id, override_event=event_id)
+  if (nrow(ov) == 0) return(mapped)
+  missing <- setdiff(ov$id, mapped[[id_col]])
+  if (length(missing) > 0) warning("event_overrides.tsv, ", table_name, ": id(s) not found: ", paste(missing, collapse=", "))
+  ev <- events %>% select(override_event=event_id, o_site=site, o_site_id=event_site_id, o_time=event_time, o_lat=latitude, o_lon=longitude)
+  out <- mapped %>%
+    left_join(ov, by=setNames("id", id_col)) %>%
+    left_join(ev, by="override_event") %>%
+    mutate(
+      is_override=!is.na(override_event),
+      event_id=case_when(override_event == "none" ~ NA_character_, is_override ~ override_event, TRUE ~ event_id)
+    )
+  ## samples carry the event columns, images only the event_id
+  if ("event_site_id" %in% names(out)) {
+    out <- out %>%
+      mutate(
+        site=if_else(is_override & !is.na(o_site), o_site, site),
+        event_site_id=if_else(is_override, o_site_id, event_site_id),
+        event_time=if_else(is_override, o_time, event_time),
+        latitude=if_else(is_override, o_lat, latitude),
+        longitude=if_else(is_override, o_lon, longitude)
+      )
+  }
+  out[[quality_col]] <- if_else(out$is_override, if_else(out$override_event == "none", "manual_none", "manual"), out[[quality_col]])
+  message(table_name, ": ", sum(out$is_override), " manual overrides applied")
+  out %>% select(-override_event, -is_override, -starts_with("o_"))
 }
 
 sample_base <- function(tab) {
@@ -260,7 +399,23 @@ hpf_samples <- hpf %>%
     amount_of_signal=na_if(amount_of_signal, "NA")
   )
 
-hpf_events <- map_to_events(hpf_samples, events) %>%
+## Vigo: one row per puck position with number_of_carriers -> one row per carrier, as in the HPF sheet
+## (no barcodes: id Vigo_HPF_<row>_<carrier>)
+vigo_hpf <- read_vigo("hpf") %>%
+  mutate(
+    event_id=vigo_alias(event_id),
+    vigo_row=row_number(),
+    n_carriers=coalesce(as.integer(number_of_carriers), 1L)
+  ) %>%
+  uncount(n_carriers, .id="carrier") %>%
+  transmute(
+    barcode=sprintf("Vigo_HPF_%02d_%d", vigo_row, carrier), site="Vigo", tara="FALSE", event_id,
+    fraction=str_replace(size_fraction, "-", "to"), puck_id, position, used
+  ) %>%
+  vigo_link()
+
+hpf_events <- bind_rows(map_to_events(hpf_samples, events), vigo_hpf) %>%
+  apply_overrides("HPF") %>%
   report_mapping("HPF")
 
 write_tsv(hpf_events, file=file.path(ov_dir, "hpf_event_map.tsv"))
@@ -293,8 +448,10 @@ cryo_wm_samples <- cryo_wm %>%
   )
 
 cryo_pf_events <- map_to_events(cryo_pf_samples, events) %>%
+  apply_overrides("cryo PF") %>%
   report_mapping("cryo PF")
 cryo_wm_events <- map_to_events(cryo_wm_samples, events) %>%
+  apply_overrides("cryo WM") %>%
   report_mapping("cryo WM")
 
 write_tsv(cryo_pf_events, file=file.path(ov_dir, "cryo_pf_event_map.tsv"))
@@ -318,7 +475,19 @@ metab_samples <- metab %>%
     notes=na_if(Notes, "NA")
   )
 
-metab_events <- map_to_events(metab_samples, events) %>%
+## Vigo: samples of the metab tab of the Vigo log (event ID), instead of the Vigo rows of the MetaB sheet
+vigo_metab <- read_vigo("metab") %>%
+  transmute(
+    barcode=barcode_sample_id, site="Vigo", tara="FALSE",
+    fraction=str_replace(size_fraction, "-", "to"),
+    depth_m=sampling_depth_m,
+    event_id=vigo_alias(event_id)
+  ) %>%
+  vigo_link()
+metab_samples <- metab_samples %>% filter(!(site == "Vigo" & barcode %in% vigo_metab$barcode))
+
+metab_events <- bind_rows(map_to_events(metab_samples, events), vigo_metab) %>%
+  apply_overrides("MetaB") %>%
   report_mapping("MetaB")
 
 write_tsv(metab_events, file=file.path(ov_dir, "metab_event_map.tsv"))
@@ -328,7 +497,7 @@ write_tsv(metab_events, file=file.path(ov_dir, "metab_event_map.tsv"))
 ## site as code in this sheet
 site_codes <- c(
   ROS="Roscoff", TAL="Tallinn", KRI="Kristineberg", BIL="Bilbao",
-  POR="Porto", BAR="Barcelona", NAP="Naples", ATH="Athens"
+  POR="Porto", BAR="Barcelona", NAP="Naples", ATH="Athens", VIG="Vigo"
 )
 
 chemfix_samples <- chemfix %>%
@@ -351,7 +520,18 @@ chemfix_samples <- chemfix %>%
     used=Used
   )
 
-chemfix_events <- map_to_events(chemfix_samples, events) %>%
+## Vigo: chem fixed tubes of the cf tab of the Vigo log (event ID)
+vigo_cf <- read_vigo("cf") %>%
+  transmute(
+    barcode=barcode_sample_id, site="Vigo",
+    fraction=str_replace_all(size_fraction, c(" to "="to", "-"="to")),
+    tube=id_eppi, used,
+    event_id=vigo_alias(event_id)
+  ) %>%
+  vigo_link()
+
+chemfix_events <- bind_rows(map_to_events(chemfix_samples, events), vigo_cf) %>%
+  apply_overrides("Chem fixation") %>%
   report_mapping("Chem fixation")
 
 write_tsv(chemfix_events, file=file.path(ov_dir, "chemfix_event_map.tsv"))
@@ -387,6 +567,45 @@ sample_by_block <- sample_index %>%
   filter(!is.na(block_name)) %>%
   distinct(block_name, .keep_all=TRUE) %>%
   select(block_name, block_barcode=barcode, block_event_id=event_id)
+
+## resin blocks that are not in the HPF sheet (Vigo log, resin_blocks tab), not linked to a single HPF
+## carrier but to the event. Rows with an event ID (no block name yet) get the key <event>_<resin>_<n>;
+## rows with a block name (<site_name>_<YYYYMMDD>_<resin>_<n>, as the HiTT datasets) get the event of
+## that site_name and date. Written to resin_blocks_extra.tsv (used by the figure and the mapping sheet).
+resin_blocks_extra <- read_vigo("resin_blocks") %>%
+  transmute(
+    entry=event_id,
+    resin=recode(resin, low="Lowicryl", epo="Epon"),
+    has_event_id=str_detect(entry, "_\\d{4}-\\d{2}-\\d{2}_\\d{2}:\\d{2}$"),
+    block_name=if_else(has_event_id, NA_character_, entry),
+    name_site_id=str_match(block_name, "^(.*)_(\\d{8})_")[, 2],
+    name_date=ymd(str_match(block_name, "^(.*)_(\\d{8})_")[, 3], quiet=TRUE),
+    event_id=if_else(has_event_id, vigo_alias(entry), NA_character_)
+  ) %>%
+  left_join(
+    vigo_events %>% select(name_site_id=event_site_id, name_date=date, name_event_id=event_id),
+    by=c("name_site_id", "name_date")
+  ) %>%
+  mutate(event_id=coalesce(event_id, name_event_id)) %>%
+  group_by(event_id, resin, block_name) %>%
+  mutate(n=row_number()) %>%
+  ungroup() %>%
+  transmute(
+    site="Vigo", event_id, resin, block_name,
+    sample_key=coalesce(block_name, paste(event_id, str_to_lower(str_sub(resin, 1, 3)), n, sep="_")),
+    how_linked=if_else(is.na(block_name), "Vigo log resin_blocks: event ID", "Vigo log resin_blocks: block name, event by site and date"),
+    match_quality=if_else(is.na(event_id), "no_event", "event_id")
+  )
+if (any(is.na(resin_blocks_extra$event_id))) warning("Vigo resin blocks without event: ",
+  paste(resin_blocks_extra$sample_key[is.na(resin_blocks_extra$event_id)], collapse=", "))
+write_tsv(resin_blocks_extra, file=file.path(ov_dir, "resin_blocks_extra.tsv"))
+
+sample_by_block <- bind_rows(
+  sample_by_block,
+  resin_blocks_extra %>%
+    filter(!is.na(block_name), !block_name %in% sample_by_block$block_name) %>%
+    transmute(block_name, block_barcode=sample_key, block_event_id=event_id)
+)
 
 ## SITE_[TARA_]fraction_date_time...: site name, date and time of day for the event fallback
 parse_sample_name <- function(x) {
@@ -595,6 +814,15 @@ imaging_map <- imaging_map %>%
   ) %>%
   select(-cf_barcode, -cf_event_id, -sem_link, -exm_barcode)
 
+## manual overrides of images; TEM / HiTT with an event count as HPF (as above)
+imaging_map <- imaging_map %>%
+  apply_overrides("image", id_col="image_id", quality_col="link") %>%
+  mutate(
+    sample_layer=if_else(link == "manual_none", NA_character_, sample_layer),
+    sample_layer=if_else(imaging %in% c("TEM", "HiTT") & is.na(sample_layer) & !is.na(event_id), "HPF", sample_layer),
+    sample_key=coalesce(sample_key, block_name)
+  )
+
 imaging_map %>% count(imaging, link) %>% print(n=Inf)
 imaging_map %>%
   filter(link == "none") %>%
@@ -602,6 +830,41 @@ imaging_map %>%
   print(n=Inf)
 
 write_tsv(imaging_map, file=file.path(ov_dir, "imaging_map.tsv"))
+
+
+## ---- review table: every link that is a guess or missing, to be fixed in event_overrides.tsv ----
+## samples: nearest_time / untimed_event (guessed), no_sample_time / no_event (no event);
+## images: linked by the date in the name only (name_event), SEM tube of another fraction, or not at all.
+## candidate_event_ids: the events at that site on that date (no_event: within +-3 days)
+nearby_events <- function(site_, date_, days=3) {
+  if (is.na(site_) || is.na(date_)) return(NA_character_)
+  e <- events %>% filter(site == site_, abs(as.numeric(date - date_)) <= days)
+  if (nrow(e) == 0) NA_character_ else paste(e$event_id, collapse="; ")
+}
+review_samples <- list(
+  HPF=hpf_events, `cryo PF`=cryo_pf_events, `cryo WM`=cryo_wm_events, MetaB=metab_events, `Chem fixation`=chemfix_events
+) %>%
+  imap_dfr(function(tab, layer) {
+    tab %>%
+      filter(match_quality %in% c("nearest_time", "untimed_event", "no_sample_time", "no_event")) %>%
+      transmute(table=layer, id=barcode, site, date_raw, time_of_day, issue=match_quality,
+                assigned_event_id=event_id, candidate_events, candidate_event_ids, date)
+  }) %>%
+  mutate(
+    candidate_event_ids=if_else(issue == "no_event", map2_chr(site, date, nearby_events), candidate_event_ids)
+  ) %>%
+  select(-date)
+review_images <- imaging_map %>%
+  filter(link %in% c("name_event", "sem_chemfix_other_fraction", "none")) %>%
+  transmute(table="image", id=image_id, imaging, site=name_site, date_raw=format(name_date, "%Y%m%d"),
+            time_of_day=name_time, issue=link, assigned_event_id=event_id,
+            candidate_event_ids=map2_chr(name_site, name_date, ~nearby_events(.x, .y, days=0)))
+mapping_review <- bind_rows(review_samples, review_images) %>%
+  ## cases already fixed by hand are left out
+  anti_join(event_overrides, by=c("table", "id"))
+write_tsv(mapping_review, file=file.path(ov_dir, "mapping_review.tsv"))
+message("mapping_review.tsv: ", nrow(mapping_review), " links to check")
+print(count(mapping_review, table, issue), n=Inf)
 
 
 ## ---- events without any sample of a layer ----

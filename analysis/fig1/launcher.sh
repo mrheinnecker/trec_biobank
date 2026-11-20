@@ -7,13 +7,16 @@
 ##   data    biobank_overview.R          -> new snapshot <FIG1_ROOT>/data/<date>_<time>/
 ##   figure  biobank_overview_figure.R   -> new folder   <FIG1_ROOT>/runs/<date>_<time>[_<RUN_NOTE>]/
 ##           (plots, copy of the figure script, run_info.txt)
+##   sheet   export_mapping_sheet.R      -> all links between the layers (clear / guessed / dropped), one tab
+##           per link, to FIG1_MAPPING_SHEET and <snapshot>/mapping_sheet/*.tsv
 ## Colours and legend labels: COLOURS AND LEGEND LABELS section at the top of biobank_overview_figure.R
 set -euo pipefail
 
 ## ---- settings ----
 REPO=/mnt/c/repos/trec_biobank
 
-## steps to run: "figure" (default; uses an existing data snapshot), "data figure" (new snapshot first)
+## steps to run: "figure" (default; uses an existing data snapshot), "data figure" (new snapshot first),
+## add "sheet" to write the mapping sheet (e.g. "data figure sheet")
 STEPS="figure"
 
 ## data step: TRUE = download the sheets / collection tables again, FALSE = reuse the previous snapshot
@@ -26,6 +29,10 @@ export FIG1_GOOGLE_KEY=$REPO/trec-tem-screen-e98a2e03f58b.json
 ## note appended to the run folder name (e.g. "new_colours")
 export FIG1_DATA_SNAPSHOT=""
 export FIG1_RUN_NOTE=""
+
+## sheet step: Google sheet for the mapping tables (the service account
+## nextflow-gsheets@trec-tem-screen.iam.gserviceaccount.com needs edit access); empty = only tsv files
+export FIG1_MAPPING_SHEET="https://docs.google.com/spreadsheets/d/1DabzZ1275Z4Agh_ertKYsTSQXndRIsf-qnUz4VQvj2E/edit"
 
 ## R container (rebuild with: bash $REPO/container/build_r_analysis.sh). Packages missing in it
 ## (circlize, ggalluvial, ggnewscale in older builds) are installed once into R_LIB.
@@ -71,8 +78,13 @@ for step in $STEPS; do
       ## circlize prints a note for every label outside its track; hide those
       (cd "$fig1_dir" && run_r biobank_overview_figure.R 2>&1 | grep -v -E "^Note: |^'[0-9]+'\.$|track$|^track '[0-9]+'\.$")
       ;;
+    sheet)
+      [[ -z "$FIG1_MAPPING_SHEET" || -f "$FIG1_GOOGLE_KEY" ]] || { echo "Google key not found: $FIG1_GOOGLE_KEY"; exit 1; }
+      echo "== export_mapping_sheet.R"
+      (cd "$fig1_dir" && run_r export_mapping_sheet.R)
+      ;;
     *)
-      echo "Unknown step: $step (data, figure)"; exit 1 ;;
+      echo "Unknown step: $step (data, figure, sheet)"; exit 1 ;;
   esac
 done
 
