@@ -113,25 +113,36 @@ chain_legend_width <- 1.6
 chain_legend_sites <- FALSE
 
 ## E (radial chain split by site): blocks of rings 2-5, same keys as chain_palette;
-## ring = legend block the entry is listed in (titles in radial_chain_ring_titles)
+## ring = legend block the entry is listed in (titles in radial_chain_ring_titles);
+## repository = where the samples / data end up, shown as symbol(s) next to the legend entry
+## (several separated by ";", NA = no symbol; symbols in repository_palette)
 radial_chain_palette <- tribble(
-  ~ring, ~key,       ~color,    ~label,
-  2,     "HPF",      "#2166AC", "HPF",
-  2,     "PF",       "#4393C3", "plunge frozen (PF + WM)",   # only used with e_split_pf <- FALSE
-  2,     "cryo PF",  "#4393C3", "plunge frozen (PF)",
-  2,     "cryo WM",  "#92C5DE", "waffle method (WM)",
-  2,     "MetaB",    "#5AAE61", "metabarcoding",
-  2,     "Chem fix", "#9970AB", "chemically fixed",
-  3,     "Epon",     "#B2182B", "Epon",
-  3,     "Lowicryl", "#EF8A62", "Lowicryl",
-  4,     "V4V5 rRNA sequencing", "#1B7837", "V4V5 rRNA sequencing",   # ring = e_metab_sequencing_ring
-  4,     "HiTT",     "#D94801", "HiTT (X-ray)",
-  4,     "resin LM", "#FD8D3C", "resin LM",
-  4,     "cryo LM",  "#FDAE6B", "cryo LM",
-  5,     "TEM",      "#7F2704", "TEM",
-  5,     "SEM",      "#8C6D31", "SEM",
-  5,     "ExM",      "#35978F", "ExM"
+  ~ring, ~key,       ~color,    ~label,                      ~repository,
+  2,     "HPF",      "#2166AC", "HPF",                       "BioSamples",
+  2,     "PF",       "#4393C3", "plunge frozen (PF + WM)",   "BioSamples",   # only used with e_split_pf <- FALSE
+  2,     "cryo PF",  "#4393C3", "plunge frozen (PF)",        "BioSamples",
+  2,     "cryo WM",  "#92C5DE", "waffle method (WM)",        "BioSamples",
+  2,     "MetaB",    "#5AAE61", "metabarcoding",             "BioSamples",
+  2,     "Chem fix", "#9970AB", "chemically fixed",          "BioSamples",
+  3,     "Epon",     "#B2182B", "Epon",                      "BioSamples",
+  3,     "Lowicryl", "#EF8A62", "Lowicryl",                  "BioSamples",
+  4,     "V4V5 rRNA sequencing", "#1B7837", "V4V5 rRNA sequencing", "ENA",   # ring = e_metab_sequencing_ring
+  4,     "HiTT",     "#D94801", "HiTT (X-ray)",              "BioImageArchive",
+  4,     "resin LM", "#FD8D3C", "resin LM",                  "BioImageArchive",
+  4,     "cryo LM",  "#FDAE6B", "cryo LM",                   "BioImageArchive",
+  5,     "TEM",      "#7F2704", "TEM",                       "BioImageArchive",
+  5,     "SEM",      "#8C6D31", "SEM",                       "BioImageArchive",
+  5,     "ExM",      "#35978F", "ExM",                       "BioImageArchive"
 )
+## repositories: symbol (filled point shape: 21 circle, 22 square, 23 diamond, 24 triangle up,
+## 25 triangle down), colour and the text in the repository key; the key lists them in row order
+repository_palette <- tribble(
+  ~repository,       ~shape, ~color,    ~label,
+  "BioSamples",      21,     "#4D4D4D", "BioSamples",
+  "ENA",             24,     "#E69F00", "ENA",
+  "BioImageArchive", 22,     "#0072B2", "BioImageArchive"
+)
+repository_legend_title <- "repository"
 ## legend of E: one block per ring, from inside to outside, with these titles
 radial_chain_ring_titles <- c(
   `2`="raw sample",
@@ -139,7 +150,8 @@ radial_chain_ring_titles <- c(
   `4`="overview scan/dataset",
   `5`="images"
 )
-## legend position, and whether the sites are listed too (as a first block with this title)
+## legend: "right" (drawn next to the circle, with the repository symbols) or "none"; whether the
+## sites are listed too (as a first block with this title)
 radial_chain_legend_position <- "right"
 radial_chain_legend_sites <- FALSE
 radial_chain_sites_title <- "site"
@@ -1434,11 +1446,11 @@ e_split_pf <- TRUE
 ## order of the sample types inside a site (NULL: by source position)
 e_ring2_order <- if (e_split_pf) c("MetaB", "HPF", "cryo PF", "cryo WM", "Chem fix") else ring2_order_fixed
 e_flow_alpha <- 0.5
-e_label_min <- c(`2`=4, `3`=4, `4`=4)  # rings 2-4: count inside blocks at least this wide (degrees)
-e_outer_label_min <- 2.5               # ring 5: label (name + count) next to blocks at least this wide
-e_site_label_min <- 30                 # ring 1: two-line label inside sites at least this wide, else inside the ring (towards the centre)
+e_label_min <- c(`2`=4, `3`=4, `4`=4, `5`=4)  # rings 2-5: count inside blocks at least this wide (degrees)
+e_site_label_min <- 20                 # ring 1: name + event count inside sites at least this wide, else inside the ring (towards the centre)
+e_site_label_count <- TRUE             # ring 1: show the number of events under the site name
+e_margin <- 0.04                       # space around the outer ring (no labels outside any more)
 e_legend_position <- radial_chain_legend_position
-e_width <- 7 + if (e_legend_position %in% c("right", "left")) chain_legend_width else 0
 ## colours and legend: radial_chain_palette / radial_chain_ring_titles in the colour section at the top
 e_block_colors <- palette_colors(radial_chain_palette)
 radial_chain_palette <- radial_chain_palette %>%
@@ -1453,6 +1465,7 @@ e_legend_blocks <- c(
 ) %>%
   map(function(b) {
     b$pal <- b$pal %>% filter(!is.na(label)) %>% distinct(color, .keep_all=TRUE)
+    if (!"repository" %in% names(b$pal)) b$pal$repository <- NA_character_
     b
   }) %>%
   keep(~nrow(.x$pal) > 0)
@@ -1654,24 +1667,25 @@ e_block_polygons <- e_blocks %>%
   reframe(id, fill, block_poly(start, end, c(r_inner, r_outer)))
 
 e_labels <- bind_rows(
-  ## sites: name + events inside wide blocks (along the circle), "name (events)" next to narrow ones
+  ## sites: name (+ number of events) inside wide blocks (along the circle), "name (n)" inside the ring
+  ## next to narrow ones
   e_blocks %>%
     filter(ring == 1) %>%
     mutate(
       wide=end - start >= e_site_label_min,
-      label=if_else(wide, paste0(block, "\n", size, " events"), paste0(block, " (", size, ")")),
+      label=case_when(
+        !e_site_label_count ~ block,
+        wide ~ paste0(block, "\n", size),
+        TRUE ~ paste0(block, " (", size, ")")
+      ),
       ## narrow sites: label on the inner side of the ring, pointing to the centre
       r_text=if_else(wide, (r_inner + r_outer) / 2, r_inner - 0.012), radial=!wide, inward=!wide
     ) %>%
     select(-wide),
-  ## rings 2-4: count inside wide blocks
+  ## rings 2-5: count inside wide blocks
   e_blocks %>%
-    filter(ring %in% 2:4, end - start >= e_label_min[as.character(ring)]) %>%
-    mutate(label=prettyNum(round(size), big.mark=","), r_text=(r_inner + r_outer) / 2, radial=FALSE),
-  ## ring 5: name and count next to the block
-  e_blocks %>%
-    filter(ring == 5, end - start >= e_outer_label_min) %>%
-    mutate(label=paste0(block, " (", prettyNum(round(size), big.mark=","), ")"), r_text=r_outer + 0.012, radial=TRUE)
+    filter(ring %in% 2:5, end - start >= e_label_min[as.character(ring)]) %>%
+    mutate(label=prettyNum(round(size), big.mark=","), r_text=(r_inner + r_outer) / 2, radial=FALSE)
 ) %>%
   mutate(
     mid=((start + end) / 2) %% 360,
@@ -1705,13 +1719,13 @@ e_plot <- ggplot() +
   scale_color_identity() +
   scale_size_identity() +
   coord_equal(
-    xlim=c(-1, 1) * (e_radii[[5]][2] + 0.18),
-    ylim=c(-1, 1) * (e_radii[[5]][2] + 0.18)
+    xlim=c(-1, 1) * (e_radii[[5]][2] + e_margin),
+    ylim=c(-1, 1) * (e_radii[[5]][2] + e_margin)
   ) +
   theme_void() +
   theme(
     plot.background=element_rect(fill="white", color=NA),
-    legend.position=e_legend_position,
+    legend.position="none",
     legend.key.size=unit(3.5, "mm"),
     legend.text=element_text(size=7),
     legend.title=element_text(size=8, face="bold"),
@@ -1721,21 +1735,111 @@ e_plot <- ggplot() +
     legend.spacing.y=unit(3, "mm")
   )
 
-## legend: one fill scale per block (ggnewscale), drawn by invisible tiles, in block order
-if (e_legend_position != "none") {
-  for (i in seq_along(e_legend_blocks)) {
-    b <- e_legend_blocks[[i]]
-    d <- b$pal %>% mutate(label=factor(label, levels=label))
-    e_plot <- e_plot +
-      ggnewscale::new_scale_fill() +
-      geom_tile(data=d, aes(x=0, y=0, fill=label), width=0, height=0, linewidth=0) +
-      scale_fill_manual(
-        values=setNames(d$color, d$label),
-        name=b$title,
-        guide=guide_legend(order=i, override.aes=list(linewidth=0))
-      )
-  }
+## ---- legend E: drawn as its own panel next to the circle ----
+## per entry: colour box, label and the repository symbol(s) in an aligned column; below the blocks the
+## repository key. Coordinates in inches (the panel is as high as the figure, 7 in).
+e_fig_height <- 7
+e_text_pt <- 7
+e_title_pt <- 8
+e_row_h <- 0.17          # height of one legend row (in)
+e_block_gap <- 0.12      # space between the legend blocks (in)
+e_symbol_gap <- 0.15     # distance between two repository symbols of one entry (in)
+
+## width of texts in inches (measured on an off-screen device)
+text_width_in <- function(x, size_pt, bold=FALSE) {
+  if (length(x) == 0) return(0)
+  grDevices::pdf(NULL)
+  on.exit(grDevices::dev.off())
+  vapply(x, function(s) {
+    grid::convertWidth(
+      grid::grobWidth(grid::textGrob(s, gp=grid::gpar(fontsize=size_pt, fontface=if (bold) "bold" else "plain"))),
+      "inches", valueOnly=TRUE
+    )
+  }, numeric(1))
 }
 
-ggsave(file.path(plot_dir, "biobank_overview_radial_chain.png"), e_plot, width=e_width, height=7, dpi=400, bg="white")
-ggsave_pdf(file.path(plot_dir, "biobank_overview_radial_chain.pdf"), e_plot, width=e_width, height=7)
+e_legend_rows <- imap_dfr(e_legend_blocks, function(b, i) {
+  bind_rows(
+    tibble(block=i, kind="title", label=b$title),
+    b$pal %>% transmute(block=i, kind="entry", label, color, repository)
+  )
+})
+e_repositories <- repository_palette %>%
+  filter(repository %in% unlist(str_split(na.omit(e_legend_rows$repository), "\\s*;\\s*")))
+e_legend_rows <- bind_rows(
+  e_legend_rows,
+  if (nrow(e_repositories) > 0) bind_rows(
+    tibble(block=length(e_legend_blocks) + 1, kind="title", label=repository_legend_title),
+    e_repositories %>% transmute(block=length(e_legend_blocks) + 1, kind="repository", label, repository, shape, color)
+  )
+) %>%
+  mutate(
+    row=row_number(),
+    ## y from the top: one row per line, a gap before every block but the first
+    y_top=(row - 1) * e_row_h + (block - 1) * e_block_gap
+  )
+
+x_box <- c(0, 0.13)
+x_label <- 0.2
+label_w <- max(text_width_in(e_legend_rows$label[e_legend_rows$kind == "entry"], e_text_pt), 0)
+x_symbol <- x_label + label_w * 1.08 + 0.15   # measured widths are a bit smaller than in the png
+max_symbols <- max(c(0, lengths(str_split(na.omit(e_legend_rows$repository[e_legend_rows$kind == "entry"]), ";"))))
+e_legend_width <- max(
+  x_symbol + max(max_symbols - 1, 0) * e_symbol_gap + 0.15,
+  x_label + max(text_width_in(e_legend_rows$label[e_legend_rows$kind == "title"], e_title_pt, bold=TRUE), 0) + 0.05,
+  x_label + max(text_width_in(e_legend_rows$label[e_legend_rows$kind == "repository"], e_text_pt), 0) + 0.1
+)
+## vertically centred
+legend_h <- max(e_legend_rows$y_top) + e_row_h
+e_legend_rows <- e_legend_rows %>% mutate(y=(e_fig_height + legend_h) / 2 - y_top - e_row_h / 2)
+
+legend_symbols <- bind_rows(
+  ## entries: symbols in the repository column
+  e_legend_rows %>%
+    filter(kind == "entry", !is.na(repository)) %>%
+    select(y, repository_list=repository) %>%
+    mutate(repository=str_split(repository_list, "\\s*;\\s*")) %>%
+    unnest(repository) %>%
+    group_by(y) %>%
+    mutate(x=x_symbol + (row_number() - 1) * e_symbol_gap) %>%
+    ungroup() %>%
+    inner_join(repository_palette %>% select(repository, shape, color), by="repository"),
+  ## repository key: symbol in the place of the colour box
+  e_legend_rows %>% filter(kind == "repository") %>% transmute(y, repository, x=mean(x_box), shape, color)
+)
+unknown_repositories <- setdiff(
+  unlist(str_split(na.omit(e_legend_rows$repository[e_legend_rows$kind == "entry"]), "\\s*;\\s*")),
+  repository_palette$repository
+)
+if (length(unknown_repositories) > 0) warning("repositories not in repository_palette: ", paste(unknown_repositories, collapse=", "))
+
+e_legend_plot <- ggplot() +
+  geom_rect(
+    data=filter(e_legend_rows, kind == "entry"),
+    aes(xmin=x_box[1], xmax=x_box[2], ymin=y - e_row_h * 0.36, ymax=y + e_row_h * 0.36, fill=color)
+  ) +
+  geom_text(
+    data=filter(e_legend_rows, kind == "title"),
+    aes(x=x_box[1], y=y, label=label), hjust=0, size=e_title_pt / .pt, fontface="bold"
+  ) +
+  geom_text(
+    data=filter(e_legend_rows, kind != "title"),
+    aes(x=x_label, y=y, label=label), hjust=0, size=e_text_pt / .pt
+  ) +
+  geom_point(data=legend_symbols, aes(x, y, shape=shape, fill=color), color="white", size=2.4, stroke=0.3) +
+  scale_fill_identity() +
+  scale_shape_identity() +
+  coord_cartesian(xlim=c(0, e_legend_width), ylim=c(0, e_fig_height), expand=FALSE) +
+  theme_void() +
+  theme(plot.margin=margin(0, 0, 0, 0), plot.background=element_rect(fill="white", color=NA))
+
+if (e_legend_position != "none" && length(e_legend_blocks) > 0) {
+  e_width <- e_fig_height + e_legend_width + 0.1
+  e_figure <- patchwork::wrap_plots(e_plot, e_legend_plot, widths=c(e_fig_height, e_legend_width + 0.1))
+} else {
+  e_width <- e_fig_height
+  e_figure <- e_plot
+}
+
+ggsave(file.path(plot_dir, "biobank_overview_radial_chain.png"), e_figure, width=e_width, height=e_fig_height, dpi=400, bg="white")
+ggsave_pdf(file.path(plot_dir, "biobank_overview_radial_chain.pdf"), e_figure, width=e_width, height=e_fig_height)
