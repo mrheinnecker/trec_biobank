@@ -122,7 +122,7 @@ trec_p <- ggplot(missing_taxonomy %>% filter(percent_missing!=0),
   theme_bw()
 
 png(
-  filename = "C:/projects/trec_biobank/metab/analysis/plots/missing_taxonomy.png",
+  filename = "C:/projects/trec_biobank/analysis/metab/rstudio/plots/missing_taxonomy.png",
   width = 3,
   height = 3,
   units = "in",
@@ -258,7 +258,7 @@ plot <- input %>%
 
 
 png(
-  filename = "C:/projects/trec_biobank/metab/analysis/plots/probe_signal_heatmap_optimal.png",
+  filename = "C:/projects/trec_biobank/analysis/metab/rstudio/plots/probe_signal_heatmap_optimal.png",
   width = 1950,
   height = 1600,
   res = 300

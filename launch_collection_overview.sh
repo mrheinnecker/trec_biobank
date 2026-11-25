@@ -17,7 +17,7 @@ prefix="collection_table_overview"
 
 mkdir -p "${outdir}"
 
-bash "${repo_dir}/overview/run_collection_table_overview.sh" \
+bash "${repo_dir}/analysis/overview/run_collection_table_overview.sh" \
   --outdir "${outdir}" \
   --container "${container}" \
   --prefix "${prefix}"
@@ -33,7 +33,7 @@ prefix="collection_table_overview"
 
 mkdir -p "${outdir}"
 
-bash "${repo_dir}/overview/run_collection_table_overview.sh" \
+bash "${repo_dir}/analysis/overview/run_collection_table_overview.sh" \
   --outdir "${outdir}" \
   --container "${container}" \
   --prefix "${prefix}"

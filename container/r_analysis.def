@@ -1,11 +1,10 @@
-# R container for the TEM annotation scripts:
-#   analysis/ (00-14, run_analysis.sh, fig1/launcher.sh) and annotations/ (make_split_collection_tables.R,
-#   migrate_annotation_rounds.R), and the metabarcoding analysis metab/analysis/ (01-06).
+# R container for the downstream analyses analysis/ (overview/, metab/ 01-07, tem/ 00-14; started with
+#   analysis/launcher.sh) and annotations/ (make_split_collection_tables.R, migrate_annotation_rounds.R).
 # rocker/tidyverse ships R 4.4.2 + tidyverse (incl. googlesheets4, googledrive, httr) and installs
 # CRAN packages as binaries from a dated Posit package manager snapshot.
 #
 # build:  apptainer build --fakeroot r_analysis.sif container/r_analysis.def
-# use:    R_SIF=/path/to/r_analysis.sif BINDS=/mnt/c,/tmp bash analysis/run_analysis.sh <outdir>
+# use:    R_SIF in analysis/launcher.sh
 
 Bootstrap: docker
 From: rocker/tidyverse:4.4.2
