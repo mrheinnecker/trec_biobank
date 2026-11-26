@@ -258,7 +258,7 @@ def color_for_channel(label, raw_color, index):
         return "blue"
     if "gfp" in label_lower or "fitc" in label_lower or "488" in label_lower:
         return "cyan"
-    if "rfp" in label_lower or "tritc" in label_lower or "mcherry" in label_lower or "561" in label_lower:
+    if any(term in label_lower for term in ("rfp", "tritc", "mcherry", "561", "568", "594")):
         return "magenta"
     if "cy5" in label_lower or "647" in label_lower or "farred" in label_lower:
         return "magenta"

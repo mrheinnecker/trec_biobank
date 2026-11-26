@@ -19,26 +19,57 @@ def load_bioimage(path):
     return np.asarray(data)
 
 
-def channel_stats_from_tczyx(data):
+## display window percentiles: min/max is useless when a few pixels are saturated
+## (common in the cryo CZIs), which made the images open almost black
+CONTRAST_LOW_PERCENTILE = 0.1
+CONTRAST_HIGH_PERCENTILE = 99.5
+
+
+def channel_percentiles(channel, low, high):
+    """(min, max, p_low, p_high) of one channel, exact via a histogram for integer data."""
     import numpy as np
 
+    if np.issubdtype(channel.dtype, np.integer) and channel.size > 0:
+        min_value = int(channel.min())
+        max_value = int(channel.max())
+        if min_value >= 0 and max_value < 2**24:
+            cdf = np.cumsum(np.bincount(channel.ravel()))
+            total = cdf[-1]
+            p_low = int(np.searchsorted(cdf, total * low / 100.0))
+            p_high = int(np.searchsorted(cdf, total * high / 100.0))
+            return float(min_value), float(max_value), float(p_low), float(p_high)
+
+    finite = channel[np.isfinite(channel)]
+    if finite.size == 0:
+        return None
+    p_low, p_high = np.percentile(finite, [low, high])
+    return float(finite.min()), float(finite.max()), float(p_low), float(p_high)
+
+
+def channel_stats_from_tczyx(data):
     stats = []
     if data.ndim != 5:
         return stats
 
     for channel_index in range(data.shape[1]):
-        channel = data[:, channel_index, :, :, :]
-        finite = channel[np.isfinite(channel)]
-        if finite.size == 0:
+        values = channel_percentiles(
+            data[:, channel_index, :, :, :],
+            CONTRAST_LOW_PERCENTILE,
+            CONTRAST_HIGH_PERCENTILE,
+        )
+        if values is None:
             continue
-        min_value = float(finite.min())
-        max_value = float(finite.max())
+        min_value, max_value, p_low, p_high = values
+        if p_high <= p_low:
+            p_low, p_high = min_value, max_value
         stats.append(
             {
                 "index": channel_index,
                 "min": min_value,
                 "max": max_value,
-                "contrast_limits": f"({min_value:.6g},{max_value:.6g})",
+                "p_low": p_low,
+                "p_high": p_high,
+                "contrast_limits": f"({p_low:.6g},{p_high:.6g})",
             }
         )
     return stats
@@ -147,9 +178,8 @@ def main():
         for channel in metadata.get("channels", []):
             stats = stats_by_index.get(channel.get("index"))
             if stats is not None:
-                channel["min"] = stats["min"]
-                channel["max"] = stats["max"]
-                channel["contrast_limits"] = stats["contrast_limits"]
+                for key in ("min", "max", "p_low", "p_high", "contrast_limits"):
+                    channel[key] = stats[key]
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True),
         encoding="utf-8",

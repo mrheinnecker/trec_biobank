@@ -153,7 +153,13 @@ sample_c1_GFP
 
 The table also writes `channel`, `channel_label`, `display`, `color`, `blend=sum`, `format=OmeZarr`, `grid`, and `grid_position`. Channels from the same image share the same `grid_position`, and `display` is channel-specific so MoBIE keeps independent display controls for DAPI/GFP/etc.
 
-During CZI preparation, the workflow computes per-channel min/max values from the `TCZYX` image data and stores them as `contrast_limits` in the collection table.
+During CZI preparation, the workflow computes per-channel statistics from the `TCZYX` image data: min/max (data range) and the 0.1/99.5 percentiles (display range). The percentiles are stored as `contrast_limits` in the collection table and as the `omero` window `start`/`end`, because min/max is useless when a few pixels are saturated.
+
+All channels are kept in their original order, so `omero.channels[i]`, the OME-XML channel `i` and the collection-table `channel` column all describe image channel `i`.
+
+Optional input-table columns `site` and `grid` set the MoBIE `view` and `grid` of a dataset (`grid` defaults to `site`). Without them the site is the leading letters of the dataset name, e.g. `Roscoff` in `Roscoff_HPF_...`.
+
+`build_10x_input_table.py` builds an input table with the 10x overview of every grid from a `find` inventory of the 2021-Villefranche / 2022-Iceland folders (see the script header).
 
 ## Containers
 

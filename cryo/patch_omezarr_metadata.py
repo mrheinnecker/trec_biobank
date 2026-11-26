@@ -16,83 +16,24 @@ COLOR_TO_HEX = {
     "gray": "FFFFFF",
     "grey": "FFFFFF",
 }
-REAL_CHANNELS = [
-    ("GFP", "cyan"),
-    ("PE", "yellow"),
-    ("ChloA", "magenta"),
-    ("TL", "white"),
-]
+def image_channels(metadata, channel_count=None):
+    """Channel metadata in the order of the image's C axis.
 
-
-def compact_label(value):
-    return "".join(char for char in str(value or "").lower() if char.isalnum())
-
-
-def rounded_wavelength(channel, key):
-    value = channel.get(key)
-    if value is None:
-        return None
-    try:
-        return round(float(value))
-    except (TypeError, ValueError):
-        return None
-
-
-def channel_matches(channel, label):
-    label_compact = compact_label(label)
-    display = compact_label(channel.get("display"))
-    channel_label = compact_label(channel.get("label"))
-    fluor = compact_label(channel.get("fluor"))
-    excitation = rounded_wavelength(channel, "excitation_wavelength_nm")
-    emission = rounded_wavelength(channel, "emission_wavelength_nm")
-
-    if label == "GFP":
-        return (
-            label_compact in {display, channel_label}
-            or "egfp" in fluor
-            or excitation == 488
-            or emission == 509
-        )
-    if label == "PE":
-        return (
-            label_compact in {display, channel_label}
-            or "alexafluor555" in fluor
-            or "af555" in fluor
-            or excitation == 553
-            or emission == 568
-        )
-    if label == "ChloA":
-        return (
-            label_compact in {display, channel_label}
-            or "chlorophylla" in fluor
-            or excitation == 655
-            or emission == 667
-        )
-    if label == "TL":
-        return label_compact in {display, channel_label}
-    return label_compact in display or label_compact in channel_label
-
-
-def real_channels_only(metadata):
-    channels = metadata.get("channels", [])
-    selected = []
-    used = set()
-    for display, color in REAL_CHANNELS:
-        for channel in channels:
-            if id(channel) in used:
-                continue
-            if channel_matches(channel, display):
-                normalized = dict(channel)
-                normalized["display"] = display
-                normalized["label"] = display
-                normalized["color"] = color
-                selected.append(normalized)
-                used.add(id(channel))
-                break
-    if selected:
-        for index, channel in enumerate(selected):
-            channel["index"] = index
-        return selected
+    Every channel is kept, in its original index order, so that entry i describes
+    image channel i. (A former filter kept only GFP/PE/ChloA/TL in that fixed order,
+    which dropped e.g. AF568/Reflection and put names on the wrong channels.)
+    channel_count is the C size of the written image; the list is cut or padded to it.
+    """
+    channels = sorted(
+        (dict(channel) for channel in metadata.get("channels", [])),
+        key=lambda channel: int(channel.get("index", 0)),
+    )
+    if channel_count is not None:
+        channels = channels[:channel_count]
+        for index in range(len(channels), channel_count):
+            channels.append({"label": f"channel_{index}", "display": f"channel_{index}"})
+    for index, channel in enumerate(channels):
+        channel["index"] = index
     return channels
 
 
@@ -133,6 +74,26 @@ def load_root_attributes(zarr_root):
     return zattrs_path, attrs, attrs, attrs
 
 
+def image_channel_count(zarr_root, ome_attrs):
+    """C size of the full-resolution array (1 when eubi squeezed a single channel away)."""
+    try:
+        multiscale = ome_attrs["multiscales"][0]
+        axes = [axis["name"] if isinstance(axis, dict) else axis for axis in multiscale["axes"]]
+        array_dir = zarr_root / multiscale["datasets"][0]["path"]
+    except (KeyError, IndexError, TypeError):
+        return None
+    for name in ("zarr.json", ".zarray"):
+        array_meta = array_dir / name
+        if array_meta.exists():
+            shape = json.loads(array_meta.read_text(encoding="utf-8")).get("shape")
+            break
+    else:
+        return None
+    if not shape or len(shape) != len(axes):
+        return None
+    return int(shape[axes.index("c")]) if "c" in axes else 1
+
+
 def parse_contrast_limits(value):
     if not value:
         return None, None
@@ -151,24 +112,30 @@ def channel_color(channel):
     return COLOR_TO_HEX.get(color.lower(), "FFFFFF")
 
 
-def build_omero_channels(metadata):
-    channels = []
-    for index, channel in enumerate(real_channels_only(metadata)):
-        min_value = channel.get("min")
-        max_value = channel.get("max")
+def build_omero_channels(channels):
+    omero_channels = []
+    for index, channel in enumerate(channels):
+        ## window start/end = display range (percentiles), min/max = data range
+        start, end = channel.get("p_low"), channel.get("p_high")
+        if start is None or end is None:
+            start, end = parse_contrast_limits(channel.get("contrast_limits"))
+        min_value = channel.get("min", start)
+        max_value = channel.get("max", end)
+        if start is None:
+            start = min_value
+        if end is None:
+            end = max_value
+        if start is None or end is None:
+            start, end = 0.0, 1.0
         if min_value is None or max_value is None:
-            min_value, max_value = parse_contrast_limits(channel.get("contrast_limits"))
-        if min_value is None:
-            min_value = 0.0
-        if max_value is None:
-            max_value = 1.0
+            min_value, max_value = start, end
 
         label = (
             channel.get("display")
             or channel.get("label")
             or f"channel_{channel.get('index', index)}"
         )
-        channels.append(
+        omero_channels.append(
             {
                 "active": True,
                 "coefficient": 1,
@@ -177,21 +144,21 @@ def build_omero_channels(metadata):
                 "inverted": False,
                 "label": str(label),
                 "window": {
-                    "start": min_value,
-                    "end": max_value,
+                    "start": start,
+                    "end": end,
                     "min": min_value,
                     "max": max_value,
                 },
             }
         )
-    return channels
+    return omero_channels
 
 
-def compact_cryo_metadata(metadata):
+def compact_cryo_metadata(metadata, channels):
     compact = dict(metadata)
     if "channels" in compact:
-        compact["channels"] = real_channels_only(metadata)
-        compact["size_c"] = len(compact["channels"])
+        compact["channels"] = channels
+        compact["size_c"] = len(channels)
     return compact
 
 
@@ -210,7 +177,7 @@ def patch_channel_attribute(element, attribute, value):
     element.set(attribute, format_ome_float(value))
 
 
-def patch_ome_xml_file(path, metadata):
+def patch_ome_xml_file(path, channels):
     try:
         tree = ET.parse(path)
     except ET.ParseError:
@@ -222,7 +189,6 @@ def patch_ome_xml_file(path, metadata):
         namespace = root.tag.split("}", 1)[0][1:]
         ET.register_namespace("", namespace)
 
-    channels = real_channels_only(metadata)
     if not channels:
         return False
 
@@ -262,10 +228,10 @@ def patch_ome_xml_file(path, metadata):
     return True
 
 
-def patch_ome_xml_files(zarr_root, metadata):
+def patch_ome_xml_files(zarr_root, channels):
     patched = []
     for path in sorted(zarr_root.rglob("*.ome.xml")):
-        if patch_ome_xml_file(path, metadata):
+        if patch_ome_xml_file(path, channels):
             patched.append(str(path))
     return patched
 
@@ -298,16 +264,17 @@ def main():
     zattrs_path, document, attrs, ome_attrs = load_root_attributes(zarr_root)
 
     metadata = json.loads(Path(args.metadata_json).read_text(encoding="utf-8"))
-    omero_channels = build_omero_channels(metadata)
+    channels = image_channels(metadata, image_channel_count(zarr_root, ome_attrs))
+    omero_channels = build_omero_channels(channels)
     if omero_channels:
         omero = ome_attrs.get("omero", {})
         omero["channels"] = omero_channels
         omero.setdefault("rdefs", {})["model"] = "color"
         ome_attrs["omero"] = omero
 
-    attrs["cryo_metadata"] = compact_cryo_metadata(metadata)
+    attrs["cryo_metadata"] = compact_cryo_metadata(metadata, channels)
     zattrs_path.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
-    patched_ome_xmls = patch_ome_xml_files(zarr_root, metadata)
+    patched_ome_xmls = patch_ome_xml_files(zarr_root, channels)
     copied_czi_metadata = copy_czi_metadata_xml(zarr_root, args.czi_metadata_xml)
 
     with Path(args.log).open("w", encoding="utf-8") as handle:

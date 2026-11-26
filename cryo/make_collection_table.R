@@ -148,7 +148,6 @@ if (length(metadata_files) > 0) {
 }
 
 default_channel_colors <- c("red", "green", "yellow", "blue", "magenta", "cyan", "white")
-preferred_channel_order <- c("GFP", "PE", "ChloA", "TL", "DAPI")
 
 near_square_columns <- function(n) {
   if (n <= 1) {
@@ -164,6 +163,7 @@ color_for_display <- function(display, fallback) {
     str_detect(compact, "tl") ~ "white",
     str_detect(compact, "reflection") ~ "white",
     str_detect(compact, "chloa") | str_detect(compact, "chlorophyll") ~ "magenta",
+    str_detect(compact, "568|594|rfp|mcherry") ~ "magenta",
     str_detect(compact, "pe") ~ "yellow",
     TRUE ~ fallback
   )
@@ -228,36 +228,31 @@ normalize_channels <- function(channels, size_c=NA_integer_) {
     )
   })
 
-  normalized <- normalized[!duplicated(map_chr(normalized, ~tolower(.x$display)))]
-  if (length(normalized) > length(preferred_channel_order)) {
-    preferred <- list()
-    for (term in preferred_channel_order) {
-      matches <- keep(
-        normalized,
-        ~tolower(.x$display) == tolower(term) ||
-          tolower(.x$label) == tolower(term)
-      )
-      if (length(matches) > 0) {
-        match <- matches[[1]]
-        match$display <- term
-        match$label <- term
-        match$color <- color_for_display(term, match$color)
-        preferred[[length(preferred) + 1L]] <- match
-      }
-    }
-    if (length(preferred) > 0) {
-      normalized <- preferred
-    }
-  }
+  ## `index` is the channel's position on the image C axis and is what MoBIE loads, so channels
+  ## are neither dropped nor renumbered here (that used to shift channels onto the wrong data).
+  normalized <- normalized[order(map_int(normalized, "index"))]
   if (!is.na(size_c) && size_c > 0) {
-    normalized <- normalized[seq_len(min(length(normalized), size_c))]
+    normalized <- keep(normalized, ~.x$index < size_c)
   }
-  normalized <- imap(normalized, function(channel, index) {
-    channel$index <- index - 1L
+  ## two channels with the same display name (e.g. two TL tracks) get the index appended
+  displays <- map_chr(normalized, "display")
+  duplicated_display <- displays %in% displays[duplicated(tolower(displays))]
+  normalized <- map2(normalized, duplicated_display, function(channel, is_duplicate) {
+    if (is_duplicate) channel$display <- paste0(channel$display, "_", channel$index)
     channel
   })
   normalized
 }
+
+## optional input-table columns: site (MoBIE view) and grid (MoBIE grid, defaults to the site).
+## Without them the site is taken from the leading letters of the name (e.g. Roscoff_HPF_...).
+for (optional_column in c("site", "grid")) {
+  if (!optional_column %in% names(all_datasets)) {
+    all_datasets[[optional_column]] <- NA_character_
+  }
+}
+all_datasets <- all_datasets %>%
+  mutate(across(c(site, grid), ~na_if(str_trim(.x), "")))
 
 base_table <- s3_root_markers %>%
   left_join(
@@ -270,7 +265,9 @@ base_table <- s3_root_markers %>%
         req_mem,
         sheet_x_scale=x_scale,
         sheet_y_scale=y_scale,
-        sheet_z_scale=z_scale
+        sheet_z_scale=z_scale,
+        sheet_site=site,
+        sheet_grid=grid
       ),
     by="name"
   ) %>%
@@ -280,10 +277,10 @@ base_table <- s3_root_markers %>%
     y_scale_nm=coalesce(as.character(y_scale_nm), sheet_y_scale),
     z_scale_nm=coalesce(as.character(z_scale_nm), sheet_z_scale),
     source_name=name,
-    site=str_extract(source_name, "^[A-Za-z]+"),
+    site=coalesce(sheet_site, str_extract(source_name, "^[A-Za-z]+")),
     collection=if_else(str_detect(source_name, "_HPF_"), "hpf", "pf_wm"),
     view=coalesce(site, "cryo"),
-    grid=coalesce(site, "cryo"),
+    grid=coalesce(sheet_grid, site, "cryo"),
     channels=map2(channels, size_c, normalize_channels),
     exclusive=FALSE,
     blend="sum",
