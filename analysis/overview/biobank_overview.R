@@ -138,7 +138,7 @@ if (refresh_exm_annotations) {
 ## events, HPF, chem fixed and MetaB samples and resin blocks of the Vigo campaign (July 2025), all with
 ## explicit event IDs (no date matching needed)
 vigo_log_sheet <- "https://docs.google.com/spreadsheets/d/10wo3RmqNkg61SI4_197OoHOPkpFMiSUL67-Xmj11Txg/edit"
-vigo_log_tabs <- c("environmental_events", "hpf", "resin_blocks", "cf", "metab")
+vigo_log_tabs <- c("sampling_events", "cryo_hpf", "resin_blocks", "cf", "metab")
 vigo_log_dir <- file.path(ov_dir, "vigo_log")
 refresh_vigo_log <- env_flag(TRUE)
 
@@ -150,6 +150,27 @@ if (!refresh_vigo_log && !is.na(prev_dir) && dir.exists(file.path(prev_dir, "vig
     tab_data <- googlesheets4::read_sheet(vigo_log_sheet, sheet=tab, col_types="c")
     write_tsv(tab_data, file=file.path(vigo_log_dir, paste0(tab, ".tsv")))
     message("Vigo log ", tab, ": ", nrow(tab_data), " rows")
+  })
+}
+
+## ---- pilots log: all tabs, saved as <ov_dir>/pilots_log/<tab>.tsv ----------------------------------
+## pilot campaigns Villefranche (2020, 2021) and Iceland (2022): sampling_events (one event per site, day
+## and time of day, made from the HPF carrier names), HPF carriers (cryo_hpf) and plunge-frozen grids
+## (cryo_pf). The MetaB samples of these sites come from the main MetaB sheet (the metab tab is still empty).
+pilots_log_sheet <- "https://docs.google.com/spreadsheets/d/1j52Ta7Zsm0-e0eIL_ZNgesX-5sKVKGIIKoTuljGsxGA/edit"
+pilots_log_tabs <- c("sampling_events", "cryo_hpf", "cryo_pf", "cf", "metab", "resin_blocks")
+pilots_log_dir <- file.path(ov_dir, "pilots_log")
+refresh_pilots_log <- env_flag(TRUE)
+
+if (!refresh_pilots_log && !is.na(prev_dir) && dir.exists(file.path(prev_dir, "pilots_log"))) {
+  reuse_previous("pilots_log")
+} else {
+  dir.create(pilots_log_dir, showWarnings=FALSE, recursive=TRUE)
+  available_pilot_tabs <- googlesheets4::sheet_names(pilots_log_sheet)
+  walk(intersect(pilots_log_tabs, available_pilot_tabs), function(tab) {
+    tab_data <- googlesheets4::read_sheet(pilots_log_sheet, sheet=tab, col_types="c")
+    write_tsv(tab_data, file=file.path(pilots_log_dir, paste0(tab, ".tsv")))
+    message("Pilots log ", tab, ": ", nrow(tab_data), " rows")
   })
 }
 
@@ -185,11 +206,11 @@ events <- sampling_events %>%
     longitude=as.numeric(Longitude)
   )
 
-## ---- Vigo events (Vigo log, environmental_events tab) ----
+## ---- Vigo events (Vigo log, sampling_events tab) ----
 ## event ID typos in the Vigo log, mapped to the event that is meant (fix them in the log, then remove
 ## them here)
 vigo_event_aliases <- c(
-  ## environmental_events says 07-04, the hpf / cf / metab tabs and the MetaB sheet say 07-11
+  ## sampling_events says 07-04, the cryo_hpf / cf / metab tabs and the MetaB sheet say 07-11
   `Baiona_2025-07-04_12:18`="Baiona_2025-07-11_12:18",
   ## metab tab: start_date of that row is 07-04, the event is Vigo_central_2025-07-04_12:21
   `Vigo_central_2025-07-08_12:21`="Vigo_central_2025-07-04_12:21"
@@ -201,8 +222,8 @@ read_vigo <- function(tab) {
 }
 
 ## one event per (corrected) event ID; date and time from the ID, site "Vigo" for all its locations
-vigo_events <- read_vigo("environmental_events") %>%
-  mutate(event_id=vigo_alias(environmental_event_id)) %>%
+vigo_events <- read_vigo("sampling_events") %>%
+  mutate(event_id=vigo_alias(event_id)) %>%
   distinct(event_id, .keep_all=TRUE) %>%
   transmute(
     event_id,
@@ -235,9 +256,88 @@ vigo_link <- function(samples) {
       event_id=if_else(unknown, NA_character_, event_id),
       match_quality=if_else(is.na(event_id), "no_event", "event_id")
     ) %>%
-    { if (any(.$unknown)) warning("Vigo log: event IDs not in environmental_events: ",
+    { if (any(.$unknown)) warning("Vigo log / pilots log: event IDs not in sampling_events: ",
                                   paste(unique(.$candidate_event_ids[.$unknown]), collapse=", ")); . } %>%
     select(-ev_date, -event_hour, -unknown)
+}
+
+## ---- pilot events (pilots log) ----
+## events of the sampling_events tab (<site>_<date>_<time of day>, time of day BS / AM / MD / PM).
+## MetaB samples and PF grids are matched to them by site, date and time of day; a sample with no time
+## of day takes the event of that day if there is only one. All others are unclear and dropped (for now,
+## until checked; no event, match_quality pilot_unclear, listed in mapping_review.tsv).
+read_pilot <- function(tab) {
+  f <- file.path(pilots_log_dir, paste0(tab, ".tsv"))
+  if (!file.exists(f) || file.size(f) == 0) return(tibble())
+  read_tsv(f, col_types=cols(.default=col_character())) %>%
+    filter(if_any(1, ~!is.na(.x) & .x != "NA"))
+}
+pilot_site <- function(x) case_when(
+  str_detect(x, regex("villefranc", ignore_case=TRUE)) ~ "Villefranche",
+  str_detect(x, regex("iceland|reykjav", ignore_case=TRUE)) ~ "Iceland"
+)
+pilot_site_code <- c(Villefranche="VSM", Iceland="REY")
+## hour of a time-of-day code, for the AM / PM split (BS = before sunrise)
+pilot_slot_hour <- c(BS=6, AM=9, MD=12, MID=12, PM=15)
+
+pilot_events <- read_pilot("sampling_events") %>%
+  transmute(
+    event_id, site=pilot_site(site_name), event_site_id=unname(pilot_site_code[site]),
+    date=ymd(start_date), event_slot=time_of_day, event_time=NA_character_,
+    event_hour=unname(pilot_slot_hour[event_slot]), latitude=NA_real_, longitude=NA_real_
+  )
+
+## pilot samples with site, date and slot (time of day), before the event is known
+pilot_hpf_raw <- read_pilot("cryo_hpf") %>%
+  mutate(p=str_split(Name, "_")) %>%
+  transmute(barcode=Name, site=pilot_site(`Collection Station/Site`), date=ymd(map_chr(p, 5)), slot=map_chr(p, 6),
+            tara="FALSE", fraction=`Size Fraction`, cryo_name=Name)
+pilot_pf_raw <- read_pilot("cryo_pf") %>%
+  transmute(site=pilot_site(`Sampling site`),
+            barcode=paste(pilot_site_code[site], "PF", Gridbox, `Grid position`, sep="_"),
+            date=ymd(`Sampling date`, quiet=TRUE), slot=NA_character_, tara="FALSE",
+            name=barcode, sample_quality=na_if(`Screening result`, "NA"), comments=na_if(`Screening comment`, "NA"))
+pilot_metab_raw <- metab %>%
+  filter(!is.na(pilot_site(Site))) %>%
+  transmute(barcode=`Barcode ID`, site=pilot_site(Site), date=ymd(Date, quiet=TRUE), slot=na_if(Time, "NA"),
+            date_raw=Date, tara=TARA, lab_id=`LabID name`, fraction=str_replace(Fraction, "-", "to"),
+            replicate=Replicate, depth_m=`Depth (m)`, sent_to_genoscope=`Sent to Genoscope`, notes=na_if(Notes, "NA"))
+
+pilot_match <- function(samples) {
+  single <- pilot_events %>% group_by(site, date) %>% filter(n() == 1) %>% ungroup() %>% select(site, date, single_id=event_id)
+  samples %>%
+    left_join(pilot_events %>% select(site, date, slot=event_slot, exact_id=event_id), by=c("site", "date", "slot"), na_matches="never") %>%
+    left_join(single, by=c("site", "date"), na_matches="never") %>%
+    mutate(
+      pilot_quality=case_when(
+        is.na(date) | is.na(site) ~ "no_event",
+        !is.na(exact_id) ~ "pilot_slot",
+        is.na(slot) & !is.na(single_id) ~ "pilot_date",
+        TRUE ~ "pilot_unclear"
+      ),
+      event_id=case_when(
+        pilot_quality == "pilot_slot" ~ exact_id,
+        pilot_quality == "pilot_date" ~ single_id
+      )
+    ) %>%
+    select(-exact_id, -single_id)
+}
+pilot_hpf_raw <- pilot_match(pilot_hpf_raw)
+pilot_pf_raw <- pilot_match(pilot_pf_raw)
+pilot_metab_raw <- pilot_match(pilot_metab_raw)
+
+pilot_unclear <- bind_rows(pilot_hpf_raw, pilot_pf_raw, pilot_metab_raw) %>% filter(pilot_quality == "pilot_unclear")
+message("Pilot events: ", nrow(pilot_events), "; ", nrow(pilot_unclear), " pilot samples without a clear event dropped (",
+        paste(count(pilot_unclear, site, date, slot) %>% transmute(paste0(site, " ", date, " ", coalesce(slot, "-"), " (", n, ")")) %>% pull(), collapse=", "), ")")
+events <- bind_rows(events, pilot_events)
+
+## pilot samples -> the columns of map_to_events (as the Vigo log), keeping the time-of-day code
+pilot_link <- function(samples) {
+  samples %>%
+    select(-any_of(c("date", "date_raw"))) %>%
+    vigo_link() %>%
+    mutate(time_of_day=slot, match_quality=pilot_quality) %>%
+    select(-slot, -pilot_quality)
 }
 
 target_hour <- c(AM=9, MID=12, PM=15)
@@ -302,7 +402,7 @@ report_mapping <- function(mapped, label) {
   message("---- ", label)
   print(count(mapped, match_quality))
   mapped %>%
-    filter(match_quality %in% c("untimed_event", "nearest_time", "no_sample_time", "no_event")) %>%
+    filter(match_quality %in% c("untimed_event", "nearest_time", "no_sample_time", "no_event", "pilot_unclear")) %>%
     count(site, date_raw, time_of_day, event_time, event_site_id, candidate_events, match_quality) %>%
     print(n=Inf)
   invisible(mapped)
@@ -405,22 +505,21 @@ hpf_samples <- hpf %>%
     amount_of_signal=na_if(amount_of_signal, "NA")
   )
 
-## Vigo: one row per puck position with number_of_carriers -> one row per carrier, as in the HPF sheet
-## (no barcodes: id Vigo_HPF_<row>_<carrier>)
-vigo_hpf <- read_vigo("hpf") %>%
+## Vigo: one row per puck position (cryo_hpf_id) with number_of_carriers -> one row per carrier, as in
+## the HPF sheet (no barcodes: id <cryo_hpf_id>_c<carrier>)
+vigo_hpf <- read_vigo("cryo_hpf") %>%
   mutate(
     event_id=vigo_alias(event_id),
-    vigo_row=row_number(),
     n_carriers=coalesce(as.integer(number_of_carriers), 1L)
   ) %>%
   uncount(n_carriers, .id="carrier") %>%
   transmute(
-    barcode=sprintf("Vigo_HPF_%02d_%d", vigo_row, carrier), site="Vigo", tara="FALSE", event_id,
+    barcode=sprintf("%s_c%d", cryo_hpf_id, carrier), site="Vigo", tara="FALSE", event_id,
     fraction=str_replace(size_fraction, "-", "to"), puck_id, position, used
   ) %>%
   vigo_link()
 
-hpf_events <- bind_rows(map_to_events(hpf_samples, events), vigo_hpf) %>%
+hpf_events <- bind_rows(map_to_events(hpf_samples, events), vigo_hpf, pilot_link(pilot_hpf_raw)) %>%
   apply_overrides("HPF") %>%
   report_mapping("HPF")
 
@@ -453,7 +552,7 @@ cryo_wm_samples <- cryo_wm %>%
     sample_quality=na_if(Sample_quality, "NA")
   )
 
-cryo_pf_events <- map_to_events(cryo_pf_samples, events) %>%
+cryo_pf_events <- bind_rows(map_to_events(cryo_pf_samples, events), pilot_link(pilot_pf_raw)) %>%
   apply_overrides("cryo PF") %>%
   report_mapping("cryo PF")
 cryo_wm_events <- map_to_events(cryo_wm_samples, events) %>%
@@ -491,8 +590,10 @@ vigo_metab <- read_vigo("metab") %>%
   ) %>%
   vigo_link()
 metab_samples <- metab_samples %>% filter(!(site == "Vigo" & barcode %in% vigo_metab$barcode))
+## pilot sites (Villefranche, Iceland): matched to the pilot events above
+metab_samples <- metab_samples %>% filter(is.na(pilot_site(site)))
 
-metab_events <- bind_rows(map_to_events(metab_samples, events), vigo_metab) %>%
+metab_events <- bind_rows(map_to_events(metab_samples, events), vigo_metab, pilot_link(pilot_metab_raw)) %>%
   apply_overrides("MetaB") %>%
   report_mapping("MetaB")
 
@@ -503,7 +604,8 @@ write_tsv(metab_events, file=file.path(ov_dir, "metab_event_map.tsv"))
 ## site as code in this sheet
 site_codes <- c(
   ROS="Roscoff", TAL="Tallinn", KRI="Kristineberg", BIL="Bilbao",
-  POR="Porto", BAR="Barcelona", NAP="Naples", ATH="Athens", VIG="Vigo"
+  POR="Porto", BAR="Barcelona", NAP="Naples", ATH="Athens", VIG="Vigo",
+  VSM="Villefranche", REY="Iceland", ICE="Iceland"
 )
 
 chemfix_samples <- chemfix %>%
@@ -574,33 +676,21 @@ sample_by_block <- sample_index %>%
   distinct(block_name, .keep_all=TRUE) %>%
   select(block_name, block_barcode=barcode, block_event_id=event_id)
 
-## resin blocks that are not in the HPF sheet (Vigo log, resin_blocks tab), not linked to a single HPF
-## carrier but to the event. Rows with an event ID (no block name yet) get the key <event>_<resin>_<n>;
-## rows with a block name (<site_name>_<YYYYMMDD>_<resin>_<n>, as the HiTT datasets) get the event of
-## that site_name and date. Written to resin_blocks_extra.tsv (used by the figure and the mapping sheet).
+## resin blocks that are not in the HPF sheet (Vigo log, resin_blocks tab): one row per block with the
+## HPF puck position it was made from (cryo_hpf_id = <event ID>_<n>), so the event is the cryo_hpf_id
+## without the _<n>. block_id is the block name (Epon blocks: <site_name>_<YYYYMMDD>_epo_<n>, as the
+## HiTT datasets). Written to resin_blocks_extra.tsv (used by the figure and the mapping sheet).
 resin_blocks_extra <- read_vigo("resin_blocks") %>%
   transmute(
-    entry=event_id,
+    site="Vigo",
+    event_id=vigo_alias(str_remove(cryo_hpf_id, "_\\d+$")),
+    cryo_hpf_id,
     resin=recode(resin, low="Lowicryl", epo="Epon"),
-    has_event_id=str_detect(entry, "_\\d{4}-\\d{2}-\\d{2}_\\d{2}:\\d{2}$"),
-    block_name=if_else(has_event_id, NA_character_, entry),
-    name_site_id=str_match(block_name, "^(.*)_(\\d{8})_")[, 2],
-    name_date=ymd(str_match(block_name, "^(.*)_(\\d{8})_")[, 3], quiet=TRUE),
-    event_id=if_else(has_event_id, vigo_alias(entry), NA_character_)
-  ) %>%
-  left_join(
-    vigo_events %>% select(name_site_id=event_site_id, name_date=date, name_event_id=event_id),
-    by=c("name_site_id", "name_date")
-  ) %>%
-  mutate(event_id=coalesce(event_id, name_event_id)) %>%
-  group_by(event_id, resin, block_name) %>%
-  mutate(n=row_number()) %>%
-  ungroup() %>%
-  transmute(
-    site="Vigo", event_id, resin, block_name,
-    sample_key=coalesce(block_name, paste(event_id, str_to_lower(str_sub(resin, 1, 3)), n, sep="_")),
-    how_linked=if_else(is.na(block_name), "Vigo log resin_blocks: event ID", "Vigo log resin_blocks: block name, event by site and date"),
-    match_quality=if_else(is.na(event_id), "no_event", "event_id")
+    block_name=block_id,
+    sample_key=block_id,
+    how_linked="Vigo log resin_blocks: block of an HPF puck position (cryo_hpf_id)",
+    match_quality=if_else(event_id %in% events$event_id, "event_id", "no_event"),
+    event_id=if_else(match_quality == "event_id", event_id, NA_character_)
   )
 if (any(is.na(resin_blocks_extra$event_id))) warning("Vigo resin blocks without event: ",
   paste(resin_blocks_extra$sample_key[is.na(resin_blocks_extra$event_id)], collapse=", "))
@@ -852,7 +942,7 @@ review_samples <- list(
 ) %>%
   imap_dfr(function(tab, layer) {
     tab %>%
-      filter(match_quality %in% c("nearest_time", "untimed_event", "no_sample_time", "no_event")) %>%
+      filter(match_quality %in% c("nearest_time", "untimed_event", "no_sample_time", "no_event", "pilot_unclear")) %>%
       transmute(table=layer, id=barcode, site, date_raw, time_of_day, issue=match_quality,
                 assigned_event_id=event_id, candidate_events, candidate_event_ids, date)
   }) %>%

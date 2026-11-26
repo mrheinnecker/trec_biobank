@@ -79,6 +79,8 @@ ggsave_pdf <- function(filename, plot, ...) {
 ## sites: site ring and site-coloured flows of all figures; the row order is the site order
 site_palette <- tribble(
   ~key,           ~color,    ~label,
+  "Villefranche", "#DDCC77", NA,
+  "Iceland",      "#882255", NA,
   "Roscoff",      "#332288", NA,
   "Tallinn",      "#4477AA", NA,
   "Kristineberg", "#66CCEE", NA,
@@ -1433,7 +1435,7 @@ e_site_gap <- 3       # gap between site groups (degrees)
 e_node_gap <- 0.6     # gap between the blocks of one site (degrees)
 ## ring radii: site ring from e_inner_radius, all rings separated by the same gap, so that the outer
 ## edge of ring 5 is at e_outer_radius
-e_inner_radius <- 0.15
+e_inner_radius <- 0.19
 e_outer_radius <- 0.71
 e_ring_widths <- c(0.06, 0.05, 0.05, 0.05, 0.05)   # rings 1-5
 e_ring_gap <- (e_outer_radius - e_inner_radius - sum(e_ring_widths)) / (length(e_ring_widths) - 1)

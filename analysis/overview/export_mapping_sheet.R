@@ -42,7 +42,7 @@ dir.create(out_dir, showWarnings=FALSE)
 read_chr <- function(f) read_tsv(file.path(ov_dir, f), col_types=cols(.default=col_character()))
 
 ## sites shown in the figure (site_palette of biobank_overview_figure.R)
-figure_sites <- c("Roscoff", "Tallinn", "Kristineberg", "Bilbao", "Vigo", "Porto", "Barcelona", "Naples", "Athens")
+figure_sites <- c("Villefranche", "Iceland", "Roscoff", "Tallinn", "Kristineberg", "Bilbao", "Vigo", "Porto", "Barcelona", "Naples", "Athens")
 
 events <- read_chr("event_coverage.tsv") %>% select(event_id, event_site=site, event_date=date, event_time, event_site_id)
 overrides <- if (file.exists(file.path(ov_dir, "event_overrides.tsv"))) {
@@ -54,7 +54,7 @@ overrides <- if (file.exists(file.path(ov_dir, "event_overrides.tsv"))) {
 }
 
 sample_status <- function(q) case_when(
-  q %in% c("date", "date_ampm", "event_id", "manual") ~ "clear",
+  q %in% c("date", "date_ampm", "event_id", "manual", "pilot_slot", "pilot_date") ~ "clear",
   q %in% c("untimed_event", "nearest_time") ~ "guessed",
   TRUE ~ "dropped"
 )
@@ -67,7 +67,10 @@ how_sample <- c(
   no_event="no event at the site on that date",
   event_id="event ID in the sample log (Vigo log)",
   manual="set by hand (event_overrides.tsv)",
-  manual_none="taken out by hand (event_overrides.tsv)"
+  manual_none="taken out by hand (event_overrides.tsv)",
+  pilot_slot="pilots log: event with the same date and time of day",
+  pilot_date="pilots log: sample without time of day, only event at the site that day",
+  pilot_unclear="pilots log: no clear event (time of day missing or not in the log), dropped (to check)"
 )
 
 
@@ -75,8 +78,8 @@ how_sample <- c(
 ## certainty: 1 = least certain (no link) ... higher = more certain; rows are sorted
 ##   1. dropped (no link), 2. linked but not in the figure (e.g. site not shown, sample without event),
 ##   3. in the figure; within these by certainty (least certain first), then by type and site
-certainty_sample <- c(no_event=1, no_sample_time=1, manual_none=1, nearest_time=2, untimed_event=3,
-                      date_ampm=4, date=5, event_id=6, manual=7)
+certainty_sample <- c(no_event=1, no_sample_time=1, manual_none=1, nearest_time=2, pilot_unclear=1, untimed_event=3,
+                      date_ampm=4, date=5, pilot_date=5, event_id=6, pilot_slot=6, manual=7)
 certainty_image <- c(none=1, manual_none=1, name_event=2, sem_chemfix_other_fraction=3, sem_chemfix=4,
                      exm_annotation=5, block_name=6, barcode=7, manual=8)
 sort_tab <- function(tab, ...) {
@@ -117,13 +120,13 @@ resin_of <- function(x) if_else(str_detect(x, regex("_low", ignore_case=TRUE)), 
 
 ## resin blocks linked to the event only (Vigo log)
 blocks_extra <- if (file.exists(file.path(ov_dir, "resin_blocks_extra.tsv"))) read_chr("resin_blocks_extra.tsv") else
-  tibble(site=character(), event_id=character(), resin=character(), block_name=character(), sample_key=character(),
+  tibble(site=character(), event_id=character(), cryo_hpf_id=character(), resin=character(), block_name=character(), sample_key=character(),
          how_linked=character(), match_quality=character())
 
 ## in_figure of the sample from its own event (not by barcode: some HPF rows have no barcode);
-## the Vigo carriers (Vigo_HPF_*) are not linked to single blocks: their blocks are listed per event below
+## the Vigo carriers are not linked to single blocks: their blocks are listed per HPF puck position below
 hpf_derived <- hpf %>%
-  filter(!str_starts(barcode, "Vigo_HPF_") | is.na(barcode)) %>%
+  filter(site != "Vigo" | is.na(site)) %>%
   left_join(events %>% select(event_id, event_site), by="event_id") %>%
   mutate(sample_in_figure=!is.na(event_id) & event_site %in% figure_sites) %>%
   transmute(
@@ -187,10 +190,10 @@ metab_derived <- tab1 %>%
 event_blocks <- blocks_extra %>%
   left_join(events %>% select(event_id, event_site), by="event_id") %>%
   transmute(
-    from_type="HPF", from_id=event_id, site=coalesce(event_site, site),
+    from_type="HPF", from_id=coalesce(cryo_hpf_id, event_id), site=coalesce(event_site, site),
     derived=resin, derived_id=sample_key,
     status=if_else(is.na(event_id), "dropped", "clear"),
-    how_linked=paste0(how_linked, " (block linked to the event, not to a single HPF carrier)"),
+    how_linked=paste0(how_linked, " (puck position with several carriers, not a single carrier)"),
     in_figure=!is.na(event_id) & site %in% figure_sites,
     certainty=if_else(is.na(event_id), 1, 6)
   )
